@@ -21,7 +21,7 @@ Welcome to **CrownFold**, an original third-person open-world survival RPG where
 
 ## Current prototype versus full vision
 
-**Implemented in browser v0.7:** five seeded overworld environments, Advanced Rifts, named era witnesses, Chronofold, mixed-era battalions, a resource-backed RTS economy, thirteen unit types, four structure types, captureable timewells, five differentiated opponent doctrines, four formations, battlefield powers, three recurring optional crises, two destructible siege anchors, five war maps with distinct enemy forces, 36-minute timers, third-person shooter controls, eighteen RPG perks, ten researchable lost sciences, six arcane arts, original story quests, three smaller dungeons and the separate original 3D board game. All five eras offer viable technologies and independently chosen commander heritage; none is a universal tech tier.
+**Implemented in browser v0.8:** five seeded overworld environments, Advanced Rifts, named era witnesses, Chronofold, mixed-era battalions, a resource-backed RTS economy, thirteen unit types, four structure types, captureable timewells, five differentiated opponent doctrines, four formations, battlefield powers, three recurring optional crises, two destructible siege anchors, five war maps with distinct enemy forces, 36-minute timers, third-person shooter controls, eighteen RPG perks, ten researchable lost sciences, six arcane arts, original story quests, three smaller dungeons and the separate original 3D board game. All five eras offer viable technologies and independently chosen commander heritage; none is a universal tech tier.
 
 **Production vision, NOT implemented:** vast and dense bespoke living lands with layered societies and schedules, full-scale siege warfare, vehicles, historic/futurist architecture and equipment, faction diplomacy, branching quests, emergent economics, mutable terrain streaming, authored 30–40 minute campaigns, larger interlocking long-term quest lines, multiplayer and AAA visuals. These are **not claimed as shipped**.
 
@@ -29,8 +29,12 @@ The name is **CrownFold**, without subtitles. The earlier prototype names *Riftf
 
 ## Current quality bar
 
-The playable v0.7 version is a **pre-alpha vertical slice**, not a AAA production. Automated checks cover core mechanics, but its typical simulated RTS rounds finish or fail much earlier than the 36-minute cap. Priority milestones: meaningful 25–45-minute mission arcs, player-validated balance, reliable squad nav, a proper visual/animation pipeline, networking and multiplayer, long-session performance budgets and dense authored cities, dungeons and quests. The [development page](Development-And-Tech.md) tracks these gates without calling planned content shipped.
+The playable v0.8 version is a **pre-alpha vertical slice**, not a AAA production. Automated checks cover core mechanics, but its typical simulated RTS rounds finish or fail much earlier than the 36-minute cap. Priority milestones: meaningful 25–45-minute mission arcs, player-validated balance, reliable squad nav, a proper visual/animation pipeline, networking and multiplayer, long-session performance budgets and dense authored cities, dungeons and quests. The [development page](Development-And-Tech.md) tracks these gates without calling planned content shipped.
 
 ## v0.7 — The Four Acts
 
 War Rifts are no longer won by rushing a single enemy base. Establish a supplied beachhead, disable two Chronal Anchors, break the enemy Throne and defend a contested extraction corridor. A separate panning RTS camera, box selection, saved battalion groups and compact command console make the player genuinely alternate between ground combat and leading an army. See [RTS campaigns](RTS-Campaigns.md).
+
+## v0.8 — Warforged
+
+Battalions now navigate around actual destructible cover and player gunfire can breach it. Enemy ranged hits are telegraphed as visible target zones, opening opportunities for sprint and dodge counterplay. Precision weak-point hits reward accuracy with bonus damage and stagger. The 2D tactical routing is bounded A* and is intentionally still a prototype; see [development details](Development-And-Tech.md) and [`docs/WARFORGED_V08.md`](../docs/WARFORGED_V08.md).

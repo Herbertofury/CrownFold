@@ -81,3 +81,7 @@ body.command-compact #commander-panel .command-action b{font-size:9px}
 body.command-compact #commander-panel .commander-compact{margin:0}
 @media(max-width:1200px){body.command-compact #commander-panel{top:85px;left:245px;width:min(370px,calc(100vw - 260px));min-width:230px}}
 @media(max-width:720px){body.command-compact #commander-panel{top:73px;left:12px;width:min(370px,calc(100vw - 24px));min-width:0}}
+
+/* v0.8 tactile feedback: precise weak-point hits have a distinct amber flash. */
+.crosshair.precision>span{background:#ffd482!important;box-shadow:0 0 15px #ffc16c}
+.crosshair.precision i{width:9px;height:9px;left:19px;top:19px;background:#ffce70;box-shadow:0 0 18px #ffd16d}

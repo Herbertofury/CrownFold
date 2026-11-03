@@ -1,10 +1,10 @@
 {
   "name": "crownfold",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "private": true,
   "license": "UNLICENSED",
-  "description": "CrownFold v0.7: multi-act chronal operations, 3D RTS panning and box-select, era-neutral RPG and cross-era campaign warfare.",
+  "description": "CrownFold v0.8: destructible cover, tactical routing, dodgable enemy fire and weak-point gunplay on top of multi-act era-neutral war campaigns.",
   "engines": {
     "node": ">=22"
   },
@@ -13,6 +13,7 @@
     "dev": "node --watch server.mjs",
     "check": "node scripts/check.mjs",
     "test": "node --test tests/*.test.mjs",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "benchmark": "node scripts/benchmark.mjs"
   }
 }

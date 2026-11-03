@@ -14,7 +14,7 @@ const keys=new Set(),input={x:0,z:0,sprint:false,jump:false,aim:false,fire:false
 const noteEls=[];let commanderDrag=null;
 const selectBox=document.getElementById('command-select-box');
 try{renderer=new WorldRenderer(canvas,quality);}catch(e){$('error').textContent=`3D renderer unavailable: ${e.message}`;$('error').classList.remove('hidden');}
-let audio=null;
+let audio=null;let weakBefore=0;
 function tone(freq=220,seconds=.1,kind='triangle',volume=.12,end=freq*.6){if(!audio)return;try{const o=audio.createOscillator(),g=audio.createGain(),now=audio.currentTime;o.type=kind;o.frequency.setValueAtTime(freq,now);o.frequency.exponentialRampToValueAtTime(Math.max(20,end),now+seconds);g.gain.setValueAtTime(volume,now);g.gain.exponentialRampToValueAtTime(.0001,now+seconds);o.connect(g);g.connect(audio.destination);o.start(now);o.stop(now+seconds+.01);}catch{}}
 function sound(name){if(name==='shoot')tone(s.player.weapon==='rail'?150:350,.09,'sawtooth',.04,45);if(name==='hit')tone(790,.10,'square',.025,360);if(name==='fold'){tone(145,.65,'sine',.15,800);tone(420,.37,'triangle',.07,120);}if(name==='echo')tone(1000,.55,'sine',.1,130);if(name==='notification')tone(430,.22,'sine',.045,620);if(name==='explosion')tone(80,.48,'sawtooth',.15,28);if(name==='build')tone(180,.2,'triangle',.08,390);}
 function updateContinue(){try{const save=safeLoad();$('continue-game').disabled=!save;}catch{$('continue-game').disabled=true;}}
@@ -27,7 +27,7 @@ function start(kind='new'){
  if(kind==='drop')enterOperation(s,0);if(kind==='war')enterOperation(s,3);
  active=true;paused=false;commander=false;commanderCompact=false;buildMenu=false;help=false;rpgMenu=false;dialogue=false;lockMenu=false;mapExpanded=false;document.body.classList.remove('commanding','command-compact','map-expanded');keys.clear();input.fire=false;
  setVisibility('menu',false);setVisibility('hud',true);setVisibility('commander-panel',false);setVisibility('build-panel',false);setVisibility('pause-overlay',false);setVisibility('help-overlay',false);setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);
- input.yaw=s.player.yaw;input.pitch=s.player.pitch;lastNotice=s.lastEvent;lastAutoSave=performance.now();bank=0;zoneBefore=s.zone;eraBefore=s.era;healthBefore=s.player.hp;shotBefore=s.player.shots;
+ input.yaw=s.player.yaw;input.pitch=s.player.pitch;lastNotice=s.lastEvent;lastAutoSave=performance.now();bank=0;zoneBefore=s.zone;eraBefore=s.era;healthBefore=s.player.hp;shotBefore=s.player.shots;weakBefore=s.player.weakHits||0;
  if(kind==='new')s.messages.push({id:++s.lastEvent,text:'WELCOME TO THE UNBROKEN FRONTIER. HEAD FOR A RIFT GATE.',type:'command',at:0});
  pointer();refresh(true);
 }
@@ -58,7 +58,7 @@ function refreshWarCommands(){
  const stats=warSummary(w),heritage=COMMANDER_HERITAGES[s.temporal.lineage.commanderEra];
  const objective=stats.objective,actLabel=$('war-act');actLabel.textContent='';actLabel.append(uiElement('strong','',objective.name),uiElement('span','',objective.description),uiElement('small','',`${objective.detail} · ${Math.round(100*objective.progress/Math.max(1,objective.target))}% COMPLETE`));
  const extractionPanel=$('war-extraction-action');setVisibility('war-extraction-action',stats.act==='extraction');if(stats.act==='extraction'){$('war-extraction-button').disabled=!canSignalWarExtraction(s);$('war-extraction-button').textContent=stats.extractionActive?'SIGNAL ACTIVE / DEFEND THE BEACON':'CALL EXTRACTION · TROOPS OR PLAYER MUST REACH BEACON';}
- $('war-stats').textContent=`${stats.supplies} SUPPLIES (+${stats.income}/s) · ${stats.population}/${stats.popCap} POP · ${stats.held}/3 WELLS · ${stats.anchorsRemaining}/2 ENEMY ANCHORS · HQ ${stats.baseHp} / ENEMY ${stats.enemyBaseHp} · RIFT SURGE ${stats.stormIn}s`;
+ $('war-stats').textContent=`${stats.supplies} SUPPLIES (+${stats.income}/s) · ${stats.population}/${stats.popCap} POP · ${stats.held}/3 WELLS · ${stats.anchorsRemaining}/2 ENEMY ANCHORS · ${stats.coverRemaining} COVER SITES · HQ ${stats.baseHp} / ENEMY ${stats.enemyBaseHp} · RIFT SURGE ${stats.stormIn}s`;
  $('war-heritage').textContent=`${heritage.name} · ${heritage.trait} · ${s.temporal.lineage.equipped.length} SCIENCES EQUIPPED · ${activeWeaves(s).length} CROSS-ERA FUSIONS`;
  $('war-log').textContent=w.events.at(-1)||'Capture timewells and assault the opposing throne.';
  const mission=$('war-expedition');
@@ -285,6 +285,7 @@ function refresh(force=false){if(!renderer||!active)return;
  set('compass', ['N','NE','E','SE','S','SW','W','NW'][Math.round(((p.yaw%(Math.PI*2)+Math.PI*2)%(Math.PI*2))/(Math.PI/4))%8]+'   ·   CROWNFOLD   ·   '+(op?'RIFT WARFRONT':s.dungeon?'LOST DUNGEON':'WILD FRONTIER'));
  if(rpgMenu||dialogue||lockMenu)return;if(p.hp<healthBefore-2){document.body.classList.add('damaged');setTimeout(()=>document.body.classList.remove('damaged'),150);}healthBefore=p.hp;
  if(p.shots>shotBefore){$('crosshair').classList.add('fire');setTimeout(()=>$('crosshair').classList.remove('fire'),80);sound('shoot');shotBefore=p.shots;}
+ if((p.weakHits||0)>weakBefore){$('crosshair').classList.add('precision');setTimeout(()=>$('crosshair').classList.remove('precision'),240);tone(1020,.11,'triangle',.07,520);weakBefore=p.weakHits;}
  for(const m of s.messages)if(m.id>lastNotice){toast(m.text,m.type);if(m.type==='success'||m.type==='command')sound('notification');lastNotice=m.id;}
  if(zoneBefore!==s.zone){if(s.zone==='frontier'){safeSave();toast('EXTRACTED TO SURVIVAL / YOUR PROGRESS PERSISTS','success');}zoneBefore=s.zone;}
 }

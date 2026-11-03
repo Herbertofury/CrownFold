@@ -86,3 +86,7 @@ The three prior classic shooter operations remain in `CONTRACTS`: **Glassfall In
 ## Production design — not implemented
 
 The full CrownFold war mode should include destructible fortifications, siege ladders and walls, vehicles and aircraft, officer units, thousands of individually simulated visible soldiers, spatially robust pathfinding, authored multi-act campaigns, persistent strategic fronts, construction placement previews, co-op and PvP, and fully voiced context-specific mission arcs. The prototype now implements role counters, basic morale/rout, tactical crises, supply caravans as escort objectives and adaptive reinforcement economies at aggregate scale, **not** those production features.
+
+## v0.8 — Breakable cover and actual routes
+
+Seven procedurally placed cover sites per War Rift now obstruct movement and ranged shots. Infantry can flank them; direct hits and field artillery can destroy them. The battalion route planner uses bounded A* over a coarse grid, caches waypoints and invalidates them when cover is destroyed. This is an actual tactical mechanic, but not a replacement for 3D navigation, volumetric cover or full physics-driven destruction. Enemy marksmen and artillery in third-person battles now telegraph a targeted impact that can be evaded.

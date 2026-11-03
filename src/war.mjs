@@ -3,6 +3,7 @@
 // date of origin does not confer power. The native AAA production will use entity-level battle simulation.
 import {ERAS,ERA_ORDER,battleAffinity,facetAt,stampFacet,temporalModifier} from './temporal.mjs';
 import {WAR_POWERS,COMMANDER_HERITAGES,equippedTech,lineageModifiers,lineageEconomy,lineageTrainingFactor,lineageCooldownFactor} from './lineage.mjs';
+import {makeBattlefieldCover,warPath,firstCoverBetween} from './battlefield.mjs';
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 export const WAR_STANCES=Object.freeze({
@@ -79,7 +80,7 @@ function makeGroup(s,type,side,x,z){const def=BATTALIONS[type],id=++s.nextId;ret
 export function createWarfront(s,campaign){const enemyEra=campaign.enemyEra||'neon',friendlyEra=campaign.era||s.era||'medieval';
  const army=[makeGroup(s,'pikemen','ally',-5,7),makeGroup(s,'longbow','ally',9,5)];
  const choices=Object.keys(BATTALIONS).filter(id=>BATTALIONS[id].era===enemyEra);const enemyArmy=[makeGroup(s,choices[0]||'pikemen','enemy',0,-103)];
- return {campaign:campaign.id,era:friendlyEra,enemyEra,supplies:205,income:2.6,popCap:120,population:army.reduce((n,a)=>n+a.count,0),base:{x:0,z:16,hp:2500,maxHp:2500},enemyBase:{x:0,z:-150,hp:2900,maxHp:2900},anchors:[{id:'west',name:'WESTERN CHRONAL ANCHOR',x:-42,z:-114,hp:860,maxHp:860},{id:'east',name:'EASTERN CHRONAL ANCHOR',x:42,z:-116,hp:860,maxHp:860}],nodes:[{x:-72,z:-45,owner:'neutral',progress:0},{x:72,z:-48,owner:'neutral',progress:0},{x:1,z:-70,owner:'enemy',progress:0}],buildings:[{kind:'barracks',x:-13,z:14,hp:850}],queue:[],army,enemyArmy,enemyWaveTimer:27,enemyDoctrine:campaign.enemyDoctrine||'pressure',enemySupplies:220,enemyIncome:2.3,enemyExhaustion:0,enemyWaves:0,elapsed:0,events:[],victory:null,selectedBattalionIds:[],controlGroups:{},act:'foothold',footholdHold:0,footholdTarget:24,extraction:{x:0,z:-96,active:false,progress:0,target:36,contested:false,nextWave:9,waves:0},supportDrops:[],supportCooldowns:{},selectedBattalionId:null,powerCooldowns:{},riftSurgeNext:70,riftSurgeIndex:0,expedition:null,expeditionNext:24,expeditionIndex:0,expeditionsCompleted:0,expeditionsFailed:0};
+ return {campaign:campaign.id,era:friendlyEra,enemyEra,cover:makeBattlefieldCover(Math.max(0,WAR_CAMPAIGNS.findIndex(c=>c.id===campaign.id))),coverRevision:0,supplies:205,income:2.6,popCap:120,population:army.reduce((n,a)=>n+a.count,0),base:{x:0,z:16,hp:2500,maxHp:2500},enemyBase:{x:0,z:-150,hp:2900,maxHp:2900},anchors:[{id:'west',name:'WESTERN CHRONAL ANCHOR',x:-42,z:-114,hp:860,maxHp:860},{id:'east',name:'EASTERN CHRONAL ANCHOR',x:42,z:-116,hp:860,maxHp:860}],nodes:[{x:-72,z:-45,owner:'neutral',progress:0},{x:72,z:-48,owner:'neutral',progress:0},{x:1,z:-70,owner:'enemy',progress:0}],buildings:[{kind:'barracks',x:-13,z:14,hp:850}],queue:[],army,enemyArmy,enemyWaveTimer:27,enemyDoctrine:campaign.enemyDoctrine||'pressure',enemySupplies:220,enemyIncome:2.3,enemyExhaustion:0,enemyWaves:0,elapsed:0,events:[],victory:null,selectedBattalionIds:[],controlGroups:{},act:'foothold',footholdHold:0,footholdTarget:24,extraction:{x:0,z:-96,active:false,progress:0,target:36,contested:false,nextWave:9,waves:0},supportDrops:[],supportCooldowns:{},selectedBattalionId:null,powerCooldowns:{},riftSurgeNext:70,riftSurgeIndex:0,expedition:null,expeditionNext:24,expeditionIndex:0,expeditionsCompleted:0,expeditionsFailed:0};
 }
 export function trainBattalion(s,type){const w=s.war,def=BATTALIONS[type];if(!w||!def||w.victory||s.zone!=='operation')return false;
  if(w.population+def.count>w.popCap||!w.buildings.some(b=>b.kind===def.building)||w.supplies<def.cost)return false;
@@ -104,7 +105,7 @@ export function recallWarControlGroup(s,index){const w=s?.war;if(!w||!Number.isI
 function selectedGroups(w){return w.selectedBattalionIds?.length?w.army.filter(g=>w.selectedBattalionIds.includes(g.id)):w.selectedBattalionId===null?w.army:w.army.filter(g=>g.id===w.selectedBattalionId);}
 export function setWarStance(s,stance){const w=s.war;if(!w||!WAR_STANCES[stance]||w.victory)return false;const groups=selectedGroups(w);if(!groups.length)return false;for(const g of groups)g.stance=stance;pushEvent(w,`${WAR_STANCES[stance].name} STANCE / ${groups.length} BATTALION${groups.length===1?'':'S'}`);return true;}
 export function warOrder(s,order,x,z){const w=s.war;if(!w||w.victory||!['follow','move','defend','assault'].includes(order))return false;const groups=selectedGroups(w);if(!groups.length)return false;
- for(const b of groups){b.order=order;b.tx=Number.isFinite(x)?x:s.player.x;b.tz=Number.isFinite(z)?z:s.player.z;}
+ for(const b of groups){b.order=order;b.tx=Number.isFinite(x)?x:s.player.x;b.tz=Number.isFinite(z)?z:s.player.z;b.navPath=[];b.navRepathAt=0;}
  pushEvent(w,`${order.toUpperCase()} ORDER / ${groups.length} FORMATION${groups.length===1?'':'S'}`);return true;
 }
 export function warCastPower(s,id){const w=s.war,power=WAR_POWERS[id];if(!w||!power||w.victory||s.zone!=='operation'||!equippedTech(s,power.unlock))return false;
@@ -186,6 +187,24 @@ function stepWarActs(s,dt){const w=s.war;if(w.base.hp<=0){w.victory='enemy';push
   if(ex.progress>=ex.target){w.victory='ally';pushEvent(w,'EXTRACTION COMPLETE / WAR WON / YOUR COMPANY SURVIVED');}
  }
 }
+// Cover has physical durability, blocks lines of fire, and is shared between both armies.
+// Losing it changes subsequent pathfinding, so siege weaponry can open new routes.
+export function hitWarCover(w,cover,damage){
+ if(!cover||cover.hp<=0||!Number.isFinite(damage)||damage<=0)return false;
+ cover.hp=Math.max(0,cover.hp-damage);
+ if(cover.hp===0){w.coverRevision=(w.coverRevision||0)+1;pushEvent(w,`${cover.id.toUpperCase()} BROKEN / A NEW ROUTE IS OPEN`);}
+ return true;
+}
+export function routeWarGroup(w,g,target,now=0){
+ const covers=w.cover||[],dest={x:target.x,z:target.z};
+ const changed=!g.navGoal||distance(dest,g.navGoal)>9||g.navRevision!==(w.coverRevision||0);
+ if(changed||now>=(g.navRepathAt||0)||!Array.isArray(g.navPath)){
+  g.navPath=warPath(g,dest,covers);
+  g.navGoal=dest;g.navRevision=w.coverRevision||0;g.navRepathAt=now+2.6+(g.id%7)*.17;
+ }
+ while(g.navPath?.length>1&&distance(g,g.navPath[0])<3.4)g.navPath.shift();
+ return g.navPath?.[0]||dest;
+}
 function nearOwnedWell(w,group){return w.nodes.some(n=>n.owner===group.side&&distance(n,group)<22);}
 export function warCounterBonus(attackerType,defenderType){
  if(!Object.hasOwn(BATTALIONS,attackerType)||!Object.hasOwn(BATTALIONS,defenderType))return 1;
@@ -225,7 +244,13 @@ function damageEnemyBase(w,damage){const ward=activeAnchors(w).length;
 }
 function fire(s,attacker,targets,base,dt){if(attacker.count<=0)return;const def=BATTALIONS[attacker.type];attacker.attackCooldown=Math.max(0,attacker.attackCooldown-dt);if(attacker.attackCooldown>0)return;
  let target=null,d=Infinity;for(const g of targets){if(g.count<=0)continue;const gap=distance(attacker,g);if(gap<d){d=gap;target=g;}}
- if(target&&d<=def.range){hitGroup(s,target,def.damage*(.7+attacker.count*.15)*unitOffense(s,attacker,target));attacker.attackCooldown=attacker.buffs.rush>0?1.07:1.2;}
+ if(target&&d<=def.range){
+   const raw=def.damage*(.7+attacker.count*.15)*unitOffense(s,attacker,target);
+   const cover=def.range>9?firstCoverBetween(attacker,target,s.war.cover||[],1):null;
+   if(cover)hitWarCover(s.war,cover,raw*(attacker.type==='cannons'?2.1:1.05));
+   else hitGroup(s,target,raw);
+   attacker.attackCooldown=attacker.buffs.rush>0?1.07:1.2;
+  }
  else {
   const anchor=attacker.side==='ally'?activeAnchors(s.war).filter(a=>distance(attacker,a)<def.range+6).sort((a,b)=>distance(attacker,a)-distance(attacker,b))[0]:null;
   const era=attacker.side==='ally'?s.war.enemyEra:s.war.era;const targetEra={era};const siegeBonus=attacker.type==='cannons'?1.35:1;
@@ -259,13 +284,25 @@ function updateGroup(s,g,enemies,base,dt){const w=s.war,def=BATTALIONS[g.type];i
   if(!nearby||g.order==='move'){
    const stance=WAR_STANCES[g.stance]||WAR_STANCES.balanced,trait=s.temporal?.lineage?.commanderEra==='neon'&&g.side==='ally'&&(g.stance==='skirmish'||g.order==='move')?1.06:1;
    const tech=g.side==='ally'?lineageModifiers(s,g,null,null).speed:1;const buff=g.buffs.rush>0?1.35:1;
-   const speed=def.speed*stance.speed*trait*tech*buff;const step=Math.min(d,speed*dt);g.x+=(tx-g.x)/(d||1)*step;g.z+=(tz-g.z)/(d||1)*step;
+   const speed=def.speed*stance.speed*trait*tech*buff;
+   const waypoint=routeWarGroup(w,g,{x:tx,z:tz},w.elapsed),wd=Math.hypot(waypoint.x-g.x,waypoint.z-g.z);
+   if(wd>.01){let vx=(waypoint.x-g.x)/wd,vz=(waypoint.z-g.z)/wd;
+    // Light formation separation; the aggregate simulation still does not model individual soldiers.
+    const friends=g.side==='ally'?w.army:w.enemyArmy;let sx=0,sz=0;
+    for(const other of friends)if(other.id!==g.id&&other.count>0){const dx=g.x-other.x,dz=g.z-other.z,sep=Math.hypot(dx,dz);
+      if(sep>.05&&sep<8){const push=(8-sep)/8;sx+=dx/sep*push;sz+=dz/sep*push;}}
+    const mix=Math.hypot(sx,sz)>0?.27:0;vx+=sx*mix;vz+=sz*mix;
+    const norm=Math.hypot(vx,vz)||1,step=Math.min(wd,speed*dt);g.x+=vx/norm*step;g.z+=vz/norm*step;
+    if(wd<=3.4&&g.navPath?.length>1)g.navPath.shift();
+   }
   }
  }
  if(!g.retreating||distance(g,rallyPoint)>26)fire(s,g,enemies,base,dt);
 }
 export function shootWarBattalion(s,aim,damage){const w=s.war;if(!w)return false;const p=s.player,yaw=aim?.yaw??p.yaw,dir={x:Math.sin(yaw),z:-Math.cos(yaw)};let best=null,along=Infinity;
  for(const enemy of w.enemyArmy){if(enemy.count<=0)continue;const dx=enemy.x-p.x,dz=enemy.z-p.z,t=dx*dir.x+dz*dir.z,off=Math.abs(dx*dir.z-dz*dir.x);if(t>0&&t<90&&off<3.8&&t<along){best=enemy;along=t;}}
+ const cover=firstCoverBetween(p,{x:p.x+dir.x*(best?along:95),z:p.z+dir.z*(best?along:95)},w.cover||[],.2);
+ if(cover){hitWarCover(w,cover,damage*(s.player.weapon==='launcher'?1.5:1));return true;}
  if(best){hitGroup(s,best,damage*1.6);return true;}
  for(const anchor of activeAnchors(w)){const dx=anchor.x-p.x,dz=anchor.z-p.z,t=dx*dir.x+dz*dir.z;if(t>0&&t<95&&Math.abs(dx*dir.z-dz*dir.x)<6){hitAnchor(w,anchor,damage*1.1);return true;}}
  const objective=w.expedition;if(objective?.type==='spire'){
@@ -274,7 +311,7 @@ export function shootWarBattalion(s,aim,damage){const w=s.war;if(!w)return false
  }
  const b=w.enemyBase,dx=b.x-p.x,dz=b.z-p.z,t=dx*dir.x+dz*dir.z;if(t>0&&t<92&&Math.abs(dx*dir.z-dz*dir.x)<11){damageEnemyBase(w,damage*.9);return true;}return false;
 }
-export function warExplosion(s,x,z,damage,radius){const w=s.war;if(!w)return;for(const enemy of w.enemyArmy)if(enemy.count>0){const d=distance(enemy,{x,z});if(d<radius+3)hitGroup(s,enemy,damage*Math.max(.12,1-d/(radius+3)));}for(const anchor of activeAnchors(w))if(distance(anchor,{x,z})<radius+7)hitAnchor(w,anchor,damage*.65);if(distance(w.enemyBase,{x,z})<radius+10)damageEnemyBase(w,damage*.5);if(w.expedition?.type==='spire'&&distance(w.expedition,{x,z})<radius+6)w.expedition.hp=Math.max(0,w.expedition.hp-damage*.65);}
+export function warExplosion(s,x,z,damage,radius){const w=s.war;if(!w)return;for(const cover of w.cover||[])if(cover.hp>0){const d=distance(cover,{x,z});if(d<radius+cover.radius)hitWarCover(w,cover,damage*Math.max(.2,1-d/(radius+cover.radius)));}for(const enemy of w.enemyArmy)if(enemy.count>0){const d=distance(enemy,{x,z});if(d<radius+3)hitGroup(s,enemy,damage*Math.max(.12,1-d/(radius+3)));}for(const anchor of activeAnchors(w))if(distance(anchor,{x,z})<radius+7)hitAnchor(w,anchor,damage*.65);if(distance(w.enemyBase,{x,z})<radius+10)damageEnemyBase(w,damage*.5);if(w.expedition?.type==='spire'&&distance(w.expedition,{x,z})<radius+6)w.expedition.hp=Math.max(0,w.expedition.hp-damage*.65);}
 
 // Chrono-crises are optional short sorties inside the large 36-minute RTS war.
 // They force the player to choose between advancing the front and helping people across time.
@@ -334,7 +371,7 @@ export function chooseEnemyBattalion(s){const w=s.war;if(!w)return null;
 export function warRiftSurge(s){const w=s.war;if(!w||w.victory)return false;const index=w.riftSurgeIndex++,well=w.nodes[index%w.nodes.length],era=ERA_ORDER[(index+ERA_ORDER.indexOf(w.enemyEra)+2)%ERA_ORDER.length];
  const anchor={x:Math.round(well.x/24)*24,z:Math.round(well.z/24)*24},inSector=o=>Math.abs(o.x-anchor.x)<12&&Math.abs(o.z-anchor.z)<12;
  const rotate=o=>{const dx=o.x-anchor.x,dz=o.z-anchor.z;o.x=anchor.x-dz;o.z=anchor.z+dx;if(Number.isFinite(o.tx)&&Number.isFinite(o.tz)){const a=o.tx-anchor.x,b=o.tz-anchor.z;o.tx=anchor.x-b;o.tz=anchor.z+a;}};
- let moved=0;for(const g of [...w.army,...w.enemyArmy])if(g.count>0&&inSector(g)){rotate(g);moved++;}for(const n of w.nodes)if(inSector(n)){rotate(n);moved++;}for(const a of activeAnchors(w))if(inSector(a)){rotate(a);moved++;}
+ let moved=0;for(const g of [...w.army,...w.enemyArmy])if(g.count>0&&inSector(g)){rotate(g);g.navRepathAt=0;g.navPath=[];moved++;}for(const n of w.nodes)if(inSector(n)){rotate(n);moved++;}for(const a of activeAnchors(w))if(inSector(a)){rotate(a);moved++;}
  stampFacet(s,anchor.x,anchor.z,1,era);pushEvent(w,`RIFT STORM / ${ERAS[era].name} / ${moved} RELOCATED`);return true;
 }
 export function stepWarfront(s,dt){const w=s.war;if(!w||w.victory)return w?.victory||null;dt=clamp(dt,0,1);w.elapsed+=dt;w.enemyWaveTimer-=dt;w.riftSurgeNext-=dt;processWarSupport(s,dt);
@@ -374,4 +411,4 @@ export function stepWarfront(s,dt){const w=s.war;if(!w||w.victory)return w?.vict
  stepWarActs(s,dt);
  return w.victory;
 }
-export function warSummary(w){if(!w)return null;const objective=warObjective(w);return {objective,act:w.act,extractionActive:w.extraction.active,supportDrops:w.supportDrops.map(d=>({id:d.id,seconds:Math.ceil(d.remaining)})),supportCooldowns:{...w.supportCooldowns},supplies:Math.floor(w.supplies),income:Math.round(w.income*10)/10,population:w.population,popCap:w.popCap,held:w.nodes.filter(n=>n.owner==='ally').length,alliedBattalions:w.army.length,enemyBattalions:w.enemyArmy.length,enemyBaseHp:Math.round(w.enemyBase.hp),baseHp:Math.round(w.base.hp),anchorsRemaining:activeAnchors(w).length,queue:w.queue.length,stormIn:Math.ceil(w.riftSurgeNext),selectedBattalionId:w.selectedBattalionId,selectedBattalionIds:[...(w.selectedBattalionIds||[])],enemyDoctrine:WAR_ENEMY_DOCTRINES[w.enemyDoctrine]?.name||'ADAPTIVE',enemySupplies:Math.floor(w.enemySupplies),expedition:w.expedition?{kind:w.expedition.type,name:WAR_EXPEDITIONS[w.expedition.type]?.name,progress:Math.round(w.expedition.progress*100),seconds:Math.ceil(w.expedition.timeLeft)}:null,crisesResolved:w.expeditionsCompleted,crisesLost:w.expeditionsFailed};}
+export function warSummary(w){if(!w)return null;const objective=warObjective(w);return {objective,act:w.act,extractionActive:w.extraction.active,supportDrops:w.supportDrops.map(d=>({id:d.id,seconds:Math.ceil(d.remaining)})),supportCooldowns:{...w.supportCooldowns},supplies:Math.floor(w.supplies),income:Math.round(w.income*10)/10,population:w.population,popCap:w.popCap,held:w.nodes.filter(n=>n.owner==='ally').length,alliedBattalions:w.army.length,enemyBattalions:w.enemyArmy.length,enemyBaseHp:Math.round(w.enemyBase.hp),baseHp:Math.round(w.base.hp),anchorsRemaining:activeAnchors(w).length,queue:w.queue.length,stormIn:Math.ceil(w.riftSurgeNext),selectedBattalionId:w.selectedBattalionId,selectedBattalionIds:[...(w.selectedBattalionIds||[])],enemyDoctrine:WAR_ENEMY_DOCTRINES[w.enemyDoctrine]?.name||'ADAPTIVE',enemySupplies:Math.floor(w.enemySupplies),coverRemaining:(w.cover||[]).filter(c=>c.hp>0).length,expedition:w.expedition?{kind:w.expedition.type,name:WAR_EXPEDITIONS[w.expedition.type]?.name,progress:Math.round(w.expedition.progress*100),seconds:Math.ceil(w.expedition.timeLeft)}:null,crisesResolved:w.expeditionsCompleted,crisesLost:w.expeditionsFailed};}

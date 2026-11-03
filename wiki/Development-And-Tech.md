@@ -13,6 +13,7 @@ The project is simply **CrownFold**, with seven successive development milestone
 | **v0.5 — Lost Futures** | Five freely chosen commander heritages, ten equally viable historical/future sciences, three equipped slots, four cross-era fusion doctrines, thirteen battalions, four stances and four field powers | Integrated |
 | **v0.6 — The Living War** | Three timed repeatable battlefield crises, enemy commander doctrines and supply budgets, military role counters, troop morale/regroup, two destructible siege anchors and command HUD feedback | Integrated |
 | **v0.7 — The Four Acts** | Mandatory supply beachhead, two-anchor siege, throne assault, contested evacuation, supply-funded delayed battle call-ins, separate RTS camera pan/zoom, box selection, control groups and compact command overlay | This release |
+| **v0.8 — Warforged** | Destructible cover, cached obstacle-aware battalion routing, telegraphed enemy fire, precision weak-point hits and reproducible aggregate battle CPU benchmark | Integrated and tested; not production navmesh/animation |
 
 ## Actual architecture (running code)
 
@@ -55,3 +56,7 @@ A future native production is most naturally prototyped in **Unreal Engine 5.8**
 Keep eight canonical pages maximum until content justifies new categories. Changes to mechanics go to their existing thematic page. Individual NPCs, quests and battalions live in tables/sections until large. Maintain **implemented vs proposed** labels prominently. Every production optimization should have a benchmark and reproducible test attached before claiming it is the latest or best.
 
 The repository path `wiki/*.md` is a **mirror**, not GitHub's separate Wiki repository. Sync to the GitHub Wiki manually or through authorized git tooling when available; do not mistake a repository file for a live Wiki page.
+
+### v0.8 — Warforged implementation and benchmark
+
+Seven destructible cover sites are visible and affect firing lines, formation routefinding and player movement. The bounded A* grid caches waypoint paths and reacts when obstacles are destroyed. Enemy ranged attacks warn at a target position; moving or dodging can avoid them. Headshots deal increased damage and briefly stagger enemies. A reproducible 5-map headless benchmark stresses 80 *aggregate formations*, explicitly excluding graphics, networking and individually simulated units. See [`docs/WARFORGED_V08.md`](../docs/WARFORGED_V08.md) for verification, shortfalls and the next acceptance gates.

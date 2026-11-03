@@ -76,7 +76,7 @@ export function propsInChunk(cx,cz,seed=SEED,mode='frontier'){
   }
   return out;
 }
-export function makePlayer(){return {x:0,z:0,y:0,vy:0,yaw:0,pitch:-.075,hp:140,maxHp:140,shield:40,maxShield:40,shieldDelay:0,stamina:100,hunger:100,thirst:100,level:1,xp:0,kills:0,shots:0,hit:0,roll:0,ammo:{rifle:36,scatter:8,rail:6,smg:60,cryo:24,launcher:4},reserve:{rifle:180,scatter:64,rail:30,smg:300,cryo:120,launcher:28},weapon:'rifle',reload:0,fireCooldown:0,grenades:4,foldCooldown:0,echoCooldown:0,orbitalCooldown:0,resupplyCooldown:0,invulnerable:0,memories:[],sprint:false,crouch:false};}
+export function makePlayer(){return {x:0,z:0,y:0,vy:0,yaw:0,pitch:-.075,hp:140,maxHp:140,shield:40,maxShield:40,shieldDelay:0,stamina:100,hunger:100,thirst:100,level:1,xp:0,kills:0,shots:0,hit:0,weakHits:0,roll:0,ammo:{rifle:36,scatter:8,rail:6,smg:60,cryo:24,launcher:4},reserve:{rifle:180,scatter:64,rail:30,smg:300,cryo:120,launcher:28},weapon:'rifle',reload:0,fireCooldown:0,grenades:4,foldCooldown:0,echoCooldown:0,orbitalCooldown:0,resupplyCooldown:0,invulnerable:0,memories:[],sprint:false,crouch:false};}
 const initialSquad=()=>[
   {id:1,x:-2.5,z:2,y:0,hp:125,maxHp:125,role:'VANGUARD',order:'follow',tx:0,tz:0,cooldown:0},
   {id:2,x:2.5,z:2.5,y:0,hp:105,maxHp:105,role:'MEDIC',order:'follow',tx:0,tz:0,cooldown:0}
@@ -84,12 +84,12 @@ const initialSquad=()=>[
 export function createGame(seed=SEED){
   const p=makePlayer();
   const world={version:1,seed,era:'medieval',temporal:makeTemporal(seed),war:null,zone:'frontier',time:0,dayTime:8.9*3600,weather:'clear',player:p,inventory:{scrap:72,ore:25,fiber:30,flux:90,ration:5,water:5,medkit:4,lockpicks:5},
-    rpg:makeRPG(),dungeon:null,drones:[],squad:initialSquad(),buildings:[],enemies:[],projectiles:[],effects:[],messages:[],harvested:[],cleared:[],operation:null,stats:{missions:0,waves:0,builds:0,folds:0,echoes:0,death:0,explore:0},
+    rpg:makeRPG(),dungeon:null,drones:[],squad:initialSquad(),buildings:[],enemies:[],hostileShots:[],projectiles:[],effects:[],messages:[],harvested:[],cleared:[],operation:null,stats:{missions:0,waves:0,builds:0,folds:0,echoes:0,death:0,explore:0},
     nextId:100,spawnTimer:3,autosaveAt:0,pickups:[],threat:0,lastZonePos:{x:0,z:0},lastEvent:0};generateBounty(world);return world;
 }
 function emit(s,text,type='info'){s.messages.push({id:++s.lastEvent,text,type,at:s.time});if(s.messages.length>12)s.messages.shift();}
 function effect(s,type,x,z,extra={}){s.effects.push({type,x,z,at:s.time,...extra});if(s.effects.length>80)s.effects.shift();}
-export function spawnEnemy(s,kind,x,z,extra={}){const def=ENEMIES[kind];if(!def)throw Error('Unknown enemy type');const enemy={id:++s.nextId,kind,era:s.era,x,z,y:terrainHeight(x,z,s.seed,s.zone),hp:def.hp*(1+(s.operation?.difficulty||0)*.12),maxHp:def.hp*(1+(s.operation?.difficulty||0)*.12),cooldown:hash(s.nextId,9,s.seed)*2,aggro:false,dead:false,...extra};s.enemies.push(enemy);return enemy;}
+export function spawnEnemy(s,kind,x,z,extra={}){const def=ENEMIES[kind];if(!def)throw Error('Unknown enemy type');const enemy={id:++s.nextId,kind,era:s.era,x,z,y:terrainHeight(x,z,s.seed,s.zone),hp:def.hp*(1+(s.operation?.difficulty||0)*.12),maxHp:def.hp*(1+(s.operation?.difficulty||0)*.12),cooldown:hash(s.nextId,9,s.seed)*2,stagger:0,aggro:false,dead:false,...extra};s.enemies.push(enemy);return enemy;}
 export function addBuilding(s,kind,x,z,free=false){const spec=STRUCTURES[kind];if(!spec||!Number.isFinite(x)||!Number.isFinite(z))return false;if(!free&&dist({x,z},s.player)>15)return false;if(!free){const mod=rpgStat(s,'discount');for(const [k,cost] of Object.entries(spec))if(typeof cost==='number'&&k in s.inventory&&(s.inventory[k]||0)<Math.ceil(cost*mod))return false;for(const [k,cost] of Object.entries(spec))if(typeof cost==='number'&&k in s.inventory)s.inventory[k]-=Math.ceil(cost*mod);}
   const hp=spec.hp*rpgStat(s,'buildingHp');const o={id:++s.nextId,kind,x,z,y:terrainHeight(x,z,s.seed,s.zone),hp,maxHp:hp,cooldown:0,zone:s.zone,era:s.era};s.buildings.push(o);s.stats.builds++;rpgEvent(s,'build',kind);emit(s,`${spec.label} deployed`,'success');effect(s,'deploy',x,z);return o;
 }
@@ -105,13 +105,21 @@ export function shoot(s,aim,force=false){const p=s.player,w=WEAPONS[p.weapon];if
     const yaw=(aim?.yaw??p.yaw)+driftYaw,pitch=clamp((aim?.pitch??p.pitch)+driftPitch,-1.25,1.25);
     const direction={x:Math.sin(yaw)*Math.cos(pitch),y:Math.sin(pitch),z:-Math.cos(yaw)*Math.cos(pitch)};
     let closest=null,best=w.range;
+    let weak=false;
     for(const e of s.enemies){if(e.hp<=0)continue;const def=ENEMIES[e.kind],cy=terrainHeight(e.x,e.z,s.seed,s.zone)+(e.kind==='titan'?3.7:e.kind==='factory'?2.0:1.15);
       const dx=e.x-origin.x,dy=cy-origin.y,dz=e.z-origin.z,t=dx*direction.x+dy*direction.y+dz*direction.z;
       if(t<0||t>best)continue;const radius=def.radius*(e.kind==='factory'?1.1:1);
       const d2=(dx*dx+dy*dy+dz*dz)-t*t;
-      if(d2<radius*radius){best=t;closest=e;}
+      const headY=cy+(e.kind==='titan'?2.3:.89),headRadius=e.kind==='titan'?1.25:.45;
+      const headDelta=headY-origin.y,ht=dx*direction.x+headDelta*direction.y+dz*direction.z;
+      const headDist=(dx*dx+headDelta*headDelta+dz*dz)-ht*ht;
+      const critical=e.kind!=='factory'&&ht>0&&ht<w.range&&headDist<headRadius*headRadius;
+      if(d2<radius*radius||critical){best=critical?Math.min(t,ht):t;closest=e;weak=critical;}
     }
-    if(closest){hitEnemy(s,closest,w.damage*rpgStat(s,'damage')*(closest.hp/closest.maxHp<.5?rpgStat(s,'execute'):1)*(p.crouch&&!closest.aggro?1.65+perkRank(s,'shadow')*.1:1), 'player');if(p.weapon==='cryo'&&closest.hp>0)closest.frozen=Math.max(closest.frozen||0,2.1);if(p.weapon==='launcher')explosiveTarget=closest;hadHit=true;}
+    if(closest){const multiplier=weak?(p.weapon==='rail'?2.25:1.8):1;
+      hitEnemy(s,closest,w.damage*multiplier*rpgStat(s,'damage')*(closest.hp/closest.maxHp<.5?rpgStat(s,'execute'):1)*(p.crouch&&!closest.aggro?1.65+perkRank(s,'shadow')*.1:1), 'player');
+      if(weak){p.weakHits=(p.weakHits||0)+1;closest.stagger=Math.max(closest.stagger||0,.43);effect(s,'weakpoint',closest.x,closest.z,{amount:Math.round(w.damage*multiplier)});}
+      if(p.weapon==='cryo'&&closest.hp>0)closest.frozen=Math.max(closest.frozen||0,2.1);if(p.weapon==='launcher')explosiveTarget=closest;hadHit=true;}
     if(i===0 || w.shots<=1){const end={x:origin.x+direction.x*best,z:origin.z+direction.z*best,y:origin.y+direction.y*best};effect(s,'tracer',origin.x,origin.z,{fromY:origin.y,toX:end.x,toY:end.y,toZ:end.z,hit:!!closest});}
   }
   if(p.weapon==='launcher'){const x=explosiveTarget?.x??origin.x+Math.sin(aim?.yaw??p.yaw)*31,z=explosiveTarget?.z??origin.z-Math.cos(aim?.yaw??p.yaw)*31;applyExplosion(s,x,z,125*rpgStat(s,'blast'),10);}if(hadHit)p.hit++;
@@ -134,14 +142,14 @@ export function fold(s){const p=s.player;if(s.inventory.flux<35||p.foldCooldown>
 export function enterDungeon(s,id){const def=DUNGEON_BY_ID[id];if(!def||s.zone!=='frontier')return false;
  const p=s.player;s.lastZonePos={x:p.x,z:p.z};s.zone='dungeon';s.operation=null;p.x=0;p.z=3;p.y=-5;p.vy=0;p.memories=[];p.shield=p.maxShield;
  const revisited=s.rpg.dungeonCleared.includes(id);s.dungeon={id,name:def.name,started:s.time,sigils:[false,false],bossDead:false,bossId:null,looted:false,revisited,exit:{x:-12,z:6}};
- s.enemies=[];s.projectiles=[];s.drones=[];s.pickups=[];for(const u of s.squad){u.x=p.x+(u.id%3-1)*2;u.z=p.z+3;u.order='follow';u.y=-5;}
+ s.enemies=[];s.projectiles=[];s.hostileShots=[];s.hostileShots=[];s.drones=[];s.pickups=[];for(const u of s.squad){u.x=p.x+(u.id%3-1)*2;u.z=p.z+3;u.order='follow';u.y=-5;}
  for(let i=0;i<5;i++)spawnEnemy(s,i%3?'specter':'raider',Math.sin(i*2.2)*10,-28-i*3,{dungeonGuard:true});
  for(let i=0;i<6;i++)spawnEnemy(s,i%2?'corruptor':'specter',Math.sin(i*3.3)*12,-68-i*2,{dungeonGuard:true});
  s.spawnTimer=1e9;s.threat=.15;emit(s,`ENTERED ${def.name} / TWO RELAYS LOCK THE GUARDIAN`,'command');return true;}
 export function leaveDungeon(s,success=false){if(s.zone!=='dungeon'||!s.dungeon)return false;const d=s.dungeon,p=s.player;
  if(success&&!s.rpg.dungeonCleared.includes(d.id)){s.rpg.dungeonCleared.push(d.id);rpgEvent(s,'dungeon',d.id);grantXP(s,140);s.rpg.factions[DUNGEON_BY_ID[d.id].faction]+=12;emit(s,`DUNGEON CONQUERED / ${DUNGEON_BY_ID[d.id].reward}`,'success');}
  s.zone='frontier';p.x=s.lastZonePos.x+3;p.z=s.lastZonePos.z+3;p.y=terrainHeight(p.x,p.z,s.seed,'frontier');p.vy=0;p.memories=[];p.shield=Math.max(10,p.shield);
- s.enemies=[];s.projectiles=[];s.pickups=[];s.drones=[];s.spawnTimer=8;for(let i=0;i<s.squad.length;i++){const u=s.squad[i];u.x=p.x+(i%3-1)*3;u.z=p.z+3;u.order='follow';}s.dungeon=null;return true;}
+ s.enemies=[];s.projectiles=[];s.hostileShots=[];s.pickups=[];s.drones=[];s.spawnTimer=8;for(let i=0;i<s.squad.length;i++){const u=s.squad[i];u.x=p.x+(i%3-1)*3;u.z=p.z+3;u.order='follow';}s.dungeon=null;return true;}
 function dungeonInteract(s,target){const d=s.dungeon;if(!d)return false;
  if(target.type==='dungeon-exit')return leaveDungeon(s,d.looted||d.revisited);
  if(target.type==='sigil'){const index=target.index;if(d.sigils[index])return false;
@@ -190,7 +198,7 @@ export function nearestInteraction(s){const p=s.player,mode=s.zone;const near=[]
   return near.sort((a,b)=>a.d-b.d)[0]||null;
 }
 export function worldGates(s=null){const old=[{x:58,z:-68,contract:0},{x:-88,z:-63,contract:1},{x:70,z:94,contract:2}];if(!s)return old;const war=CONTRACTS.findIndex(c=>c.mode==='war'&&c.era===s.era);return s.era==='medieval'?[...old,{x:52,z:23,contract:war}]:[{x:50,z:-43,contract:war}];}
-export function changeEpoch(s,destination){if(s.zone!=='frontier'||!validEra(destination)||destination===s.era)return false;const old=s.era,p=s.player;s.temporal.eraPositions[old]={x:p.x,z:p.z};s.era=destination;s.seed=epochSeed(s.temporal.baseSeed,destination);const save=s.temporal.eraPositions[destination];p.x=save?.x||0;p.z=save?.z||0;p.y=terrainHeight(p.x,p.z,s.seed,s.zone);p.vy=0;p.memories=[];s.enemies=[];s.projectiles=[];s.pickups=[];s.drones=[];s.spawnTimer=8;for(const u of s.squad){u.x=p.x+2;u.z=p.z+3;u.era=u.era||old;u.order='follow';}if(!s.temporal.visited.includes(destination)){s.temporal.visited.push(destination);s.temporal.insight+=4;}s.temporal.chronicleLog.push(`${ERAS[old].name} → ${ERAS[destination].name}`);emit(s,`WORLD RIFT / ${ERAS[destination].period} / ${ERAS[destination].faction}`,'command');return true;}
+export function changeEpoch(s,destination){if(s.zone!=='frontier'||!validEra(destination)||destination===s.era)return false;const old=s.era,p=s.player;s.temporal.eraPositions[old]={x:p.x,z:p.z};s.era=destination;s.seed=epochSeed(s.temporal.baseSeed,destination);const save=s.temporal.eraPositions[destination];p.x=save?.x||0;p.z=save?.z||0;p.y=terrainHeight(p.x,p.z,s.seed,s.zone);p.vy=0;p.memories=[];s.enemies=[];s.projectiles=[];s.hostileShots=[];s.pickups=[];s.drones=[];s.spawnTimer=8;for(const u of s.squad){u.x=p.x+2;u.z=p.z+3;u.era=u.era||old;u.order='follow';}if(!s.temporal.visited.includes(destination)){s.temporal.visited.push(destination);s.temporal.insight+=4;}s.temporal.chronicleLog.push(`${ERAS[old].name} → ${ERAS[destination].name}`);emit(s,`WORLD RIFT / ${ERAS[destination].period} / ${ERAS[destination].faction}`,'command');return true;}
 export function caravanEra(s,id){const site=eraSites(s.era).find(p=>p.id===id);if(!site||s.zone!=='frontier'||!s.temporal.worldCaches.includes(id)||s.inventory.flux<12||s.enemies.some(e=>e.hp>0&&dist(e,s.player)<25))return false;s.inventory.flux-=12;s.player.x=site.x+3;s.player.z=site.z+3;s.player.y=terrainHeight(s.player.x,s.player.z,s.seed,s.zone);s.player.memories=[];emit(s,`CARAVAN RIFT / ${site.name} / -12 FLUX`,'command');return true;}
 export function selectEpoch(s){const era=cycleFacetEra(s);emit(s,`CHRONOFOLD TARGET / ${ERAS[era].name}`,'command');return era;}
 export function surveyChronicle(s,id){const place=eraSites(s.era).find(x=>x.id===id);if(!place||s.temporal.worldCaches.includes(id))return false;s.temporal.worldCaches.push(id);s.temporal.insight+=8;s.inventory.flux+=30;s.inventory.ore+=15;s.rpg.coins+=35;s.temporal.chronicleLog.push(`Explored ${place.name} in ${ERAS[s.era].period}`);emit(s,`CHRONICLE DISCOVERED / ${place.name} / +8 INSIGHT / +30 FLUX`,'success');return true;}
@@ -210,7 +218,7 @@ export function makeObjectives(seed=SEED,index=0){let k=index*73 + (seed%37);con
 export function enterOperation(s,index=0){if(s.zone!=='frontier'||!CONTRACTS[index])return false;
   const p=s.player;s.lastZonePos={x:p.x,z:p.z};s.temporal.returnEra=s.era;const targetEra=CONTRACTS[index].era||s.era;s.era=targetEra;s.seed=epochSeed(s.temporal.baseSeed,targetEra);s.zone='operation';p.x=0;p.z=0;p.y=terrainHeight(0,0,s.seed,'operation');p.vy=0;p.memories=[];p.hp=Math.min(p.maxHp,p.hp+20);p.shield=p.maxShield;
   const objectives=makeObjectives(s.seed,s.stats.missions+index),contract=CONTRACTS[index];s.operation={id:s.stats.missions+index+1,contract:index,name:contract.title,stage:0,objectives,timeLeft:36*60,timeElapsed:0,difficulty:contract.difficulty,destroyed:0,bossDead:false,extracting:false,pylons:[],drillHp:700,completed:false,stageStart:0};
-  s.enemies=[];s.projectiles=[];s.buildings=s.buildings.filter(b=>b.zone==='frontier');for(const u of s.squad){u.x=p.x+(u.id%3)*2;u.z=p.z+3;u.order='follow';u.hp=Math.max(70,u.hp);}
+  s.enemies=[];s.projectiles=[];s.hostileShots=[];s.buildings=s.buildings.filter(b=>b.zone==='frontier');for(const u of s.squad){u.x=p.x+(u.id%3)*2;u.z=p.z+3;u.order='follow';u.hp=Math.max(70,u.hp);}
   s.war=contract.mode==='war'?createWarfront(s,contract):null;if(s.war){s.operation.kind='war';s.operation.objectives=[{type:'throne',name:'BREAK THE CHRONAL THRONE',x:s.war.enemyBase.x,z:s.war.enemyBase.z,progress:0,target:2900,description:'Build production, capture three timewells, command battalions and destroy the enemy citadel.'}];s.operation.stage=0;s.spawnTimer=1e10;}else{s.spawnTimer=5;}s.threat=.15;emit(s,`DROP COMPLETE / ${contract.title}`,'command');emit(s,contract.mode==='war'?'36:00 WAR / LIVE RTS PRODUCTION AND THIRD-PERSON COMBAT':'36:00 EXTRACTION WINDOW / 6-PHASE OPERATION');return true;
 }
 function startStage(s){const op=s.operation;if(!op)return;op.stageStart=s.time;const o=op.objectives[op.stage];
@@ -223,7 +231,7 @@ function startStage(s){const op=s.operation;if(!op)return;op.stageStart=s.time;c
 function advance(s){const op=s.operation;if(!op)return;op.stage++;if(op.stage>=6){finishOperation(s,true);return;}startStage(s);}
 export function finishOperation(s,success=true){const op=s.operation;if(!op)return false;const p=s.player;const earned=success?100+op.difficulty*60+Math.round(op.timeLeft/30):25;
   s.inventory.scrap+=earned;s.inventory.ore+=success?24:7;s.inventory.flux+=success?70:18;if(success&&op.kind==='war'){const id=CONTRACTS[op.contract].id;if(id&&!s.temporal.wonCampaigns.includes(id)){s.temporal.wonCampaigns.push(id);s.temporal.insight+=18;s.temporal.chronicleLog.push(`Liberated ${CONTRACTS[op.contract].region} from the ${ERAS[op.era||s.era].name}`);}}if(success){s.inventory.medkit+=2;s.stats.missions++;rpgEvent(s,'operation',String(op.contract));grantXP(s,230+op.difficulty*45);s.rpg.coins+=130+op.difficulty*30;}s.zone='frontier';s.era=s.temporal.returnEra||'medieval';s.seed=epochSeed(s.temporal.baseSeed,s.era);p.x=s.lastZonePos.x+3;p.z=s.lastZonePos.z+3;p.y=terrainHeight(p.x,p.z,s.seed,'frontier');p.memories=[];p.hp=Math.max(45,p.hp);p.shield=p.maxShield;
-  s.enemies=[];s.projectiles=[];s.buildings=s.buildings.filter(b=>b.zone==='frontier');s.spawnTimer=6;for(const u of s.squad){u.x=p.x+2;u.z=p.z+3;u.order='follow';}
+  s.enemies=[];s.projectiles=[];s.hostileShots=[];s.buildings=s.buildings.filter(b=>b.zone==='frontier');s.spawnTimer=6;for(const u of s.squad){u.x=p.x+2;u.z=p.z+3;u.order='follow';}
   emit(s,success?`OPERATION SUCCESS / +${earned} SCRAP / RELIC SECURED`:`OPERATION ABORTED / +${earned} SALVAGE`,success?'success':'warning');s.operation=null;s.war=null;return true;
 }
 function updateOperation(s,dt){const op=s.operation;if(!op)return;op.timeElapsed+=dt;op.timeLeft-=dt;if(op.timeLeft<=0){finishOperation(s,false);return;}if(op.kind==='war'){if(s.war){const outcome=stepWarfront(s,dt),objective=warObjective(s.war);Object.assign(op.objectives[0],objective);if(outcome){finishOperation(s,outcome==='ally');}}return;}
@@ -236,7 +244,25 @@ function updateOperation(s,dt){const op=s.operation;if(!op)return;op.timeElapsed
   else if(op.stage===4){if(op.bossDead){o.progress=1;advance(s);}}
   else if(op.stage===5&&op.extracting){const enemies=s.enemies.filter(e=>e.hp>0&&dist(e,o)<11).length;o.progress=clamp(o.progress+(near&&!enemies?dt:-dt*.4),0,o.target);if(o.progress>=o.target)finishOperation(s,true);}
 }
-function enemyBrain(s,e,dt){const def=ENEMIES[e.kind],p=s.player;e.cooldown-=dt;if(e.frozen>0){e.frozen=Math.max(0,e.frozen-dt);return;}
+const HOSTILE_TELEGRAPHS=Object.freeze({raider:{delay:.48,radius:2},warden:{delay:.78,radius:2.9},artillery:{delay:1.45,radius:5.5},titan:{delay:1.15,radius:6},corruptor:{delay:.68,radius:3.3},oracle:{delay:.85,radius:3.2}});
+export function resolveHostileShots(s,dt){
+ const shots=s.hostileShots||[];
+ for(const shot of shots){shot.remaining-=dt;if(shot.remaining>0)continue;
+   const target=shot.team==='player'?s.player:shot.team==='squad'?s.squad.find(u=>u.id===shot.targetId):s.buildings.find(b=>b.id===shot.targetId);
+   if(target&&target.hp>0){const separation=Math.hypot(shot.tx-target.x,shot.tz-target.z);
+     if(separation<shot.radius){const amount=shot.damage*(1-.35*separation/shot.radius);
+       if(shot.team==='player'&&target.invulnerable<=0){let left=amount;if(target.shield>0){const shielded=Math.min(target.shield,left);target.shield-=shielded;left-=shielded;}target.hp-=left*(1-rpgStat(s,'armor'));target.shieldDelay=6;effect(s,'damage',target.x,target.z,{amount:Math.round(amount)});}
+       else if(shot.team!=='player')target.hp-=amount;
+     }
+   }
+   effect(s,'enemytracer',shot.x,shot.z,{fromY:shot.y,toX:shot.tx,toY:terrainHeight(shot.tx,shot.tz,s.seed,s.zone)+1.3,toZ:shot.tz});
+   if(shot.radius>4)effect(s,'explosion',shot.tx,shot.tz,{radius:shot.radius});
+ }
+ s.hostileShots=shots.filter(q=>q.remaining>0);
+}
+function enemyBrain(s,e,dt){const def=ENEMIES[e.kind],p=s.player;e.cooldown-=dt;
+ if(e.stagger>0){e.stagger=Math.max(0,e.stagger-dt);return;}
+ if(e.frozen>0){e.frozen=Math.max(0,e.frozen-dt);return;}
   if(e.kind==='factory'){if(e.cooldown<=0 && s.enemies.filter(a=>a.hp>0&&!['factory','titan'].includes(a.kind)).length<36){const a=hash(e.id,Math.floor(s.time),s.seed)*TAU;spawnEnemy(s,'crawler',e.x+Math.cos(a)*7,e.z+Math.sin(a)*7);e.cooldown=10;}return;}
   let target=p,team='player',d=s.rpg.status.cloak>0?1e5:dist(e,p);
   for(const u of s.squad)if(u.hp>0&&dist(e,u)<d*.72){target=u;d=dist(e,u);team='squad';}
@@ -245,9 +271,14 @@ function enemyBrain(s,e,dt){const def=ENEMIES[e.kind],p=s.player;e.cooldown-=dt;
   if(s.rpg.status.cloak>0&&team==='player')return;if(!e.aggro && d>90)return;
   const dx=target.x-e.x,dz=target.z-e.z,length=Math.max(.01,Math.hypot(dx,dz)),keep=def.range<4?1.7:def.range*.75;
   if(def.speed>0&&d>keep){let move=def.speed*dt;if(e.kind==='crawler')move*=1+Math.sin(s.time*7+e.id)*.08;e.x+=dx/length*Math.min(move,d-keep);e.z+=dz/length*Math.min(move,d-keep);e.y=terrainHeight(e.x,e.z,s.seed,s.zone);}
-  if(e.cooldown<=0&&d<def.range+2){const hurt=def.damage*(.7+hash(e.id,Math.floor(s.time*3),s.seed)*.6);if(team==='player'){if(p.invulnerable<=0){let remaining=hurt;if(p.shield>0){const absorbed=Math.min(p.shield,remaining);p.shield-=absorbed;remaining-=absorbed;}p.hp-=remaining*(1-rpgStat(s,'armor'));p.shieldDelay=6;effect(s,'damage',p.x,p.z,{amount:Math.round(hurt)});}}else target.hp-=hurt;
-    if(def.range>4)effect(s,'enemytracer',e.x,e.z,{fromY:e.y+1.6,toX:target.x,toY:terrainHeight(target.x,target.z,s.seed,s.zone)+1.3,toZ:target.z});
-    e.cooldown=e.kind==='titan'?1.4:e.kind==='crawler'?.87:e.kind==='artillery'?2.5:1.65;
+  else if(def.speed>0&&def.range>8&&d>7){const strafe=Math.sin(s.time*1.1+e.id*2.7)*def.speed*dt*.29;e.x+=-dz/length*strafe;e.z+=dx/length*strafe;e.y=terrainHeight(e.x,e.z,s.seed,s.zone);}
+  if(e.cooldown<=0&&d<def.range+2){const hurt=def.damage*(.7+hash(e.id,Math.floor(s.time*3),s.seed)*.6);
+    if(def.range>4){const spec=HOSTILE_TELEGRAPHS[e.kind]||{delay:.65,radius:2};
+      if(s.hostileShots.length<85)s.hostileShots.push({id:++s.nextId,sourceId:e.id,kind:e.kind,team,targetId:team==='player'?null:target.id,
+        x:e.x,z:e.z,y:e.y+1.6,tx:target.x,tz:target.z,damage:hurt,remaining:spec.delay,radius:spec.radius});
+    }else if(team==='player'){if(p.invulnerable<=0){let remaining=hurt;if(p.shield>0){const absorbed=Math.min(p.shield,remaining);p.shield-=absorbed;remaining-=absorbed;}p.hp-=remaining*(1-rpgStat(s,'armor'));p.shieldDelay=6;effect(s,'damage',p.x,p.z,{amount:Math.round(hurt)});}}
+    else target.hp-=hurt;
+    e.cooldown=e.kind==='titan'?2.0:e.kind==='crawler'?.87:e.kind==='artillery'?3.1:1.65;
   }
 }
 function squadBrain(s,u,dt){if(u.hp<=0)return;u.cooldown-=dt;const p=s.player;
@@ -276,6 +307,8 @@ function updatePlayer(s,input,dt){const p=s.player;
   const mx=clamp(input.x||0,-1,1),mz=clamp(input.z||0,-1,1),mag=Math.max(1,Math.hypot(mx,mz));
   p.crouch=!!input.crouch&&!input.commander;p.sprint=!!input.sprint&&!p.crouch&&p.stamina>1&&mz>0&&!input.commander;const speed=(input.commander?0:p.crouch?2.8:p.sprint?10.7:input.aim?3.3:6.2)*rpgStat(s,'speed')*(p.hunger<15||p.thirst<15?.70:1);
   const previous={x:p.x,z:p.z};p.x+=(right.x*mx+front.x*mz)/mag*speed*dt;p.z+=(right.z*mx+front.z*mz)/mag*speed*dt;if(s.zone==='dungeon')dungeonClamp(p,previous);
+  if(s.war)for(const cover of s.war.cover||[])if(cover.hp>0){const dx=p.x-cover.x,dz=p.z-cover.z,d=Math.hypot(dx,dz),limit=cover.radius*.87+1;
+    if(d<limit){if(d>.05){p.x=cover.x+dx/d*limit;p.z=cover.z+dz/d*limit;}else{p.x=previous.x;p.z=previous.z;}}}
   p.yaw=Number.isFinite(input.yaw)?input.yaw:p.yaw;p.pitch=clamp(Number.isFinite(input.pitch)?input.pitch:p.pitch,-1.05,.55);
   const floor=terrainHeight(p.x,p.z,s.seed,s.zone),grounded=p.y<=floor+.02;
   if(input.jump&&grounded&&!input.commander){p.vy=7.5;p.y=floor+.1;p.stamina=Math.max(0,p.stamina-12);}
@@ -295,6 +328,7 @@ function droneBrain(s,d,dt){if(s.time>=d.expires)return;d.cooldown=Math.max(0,d.
 export function stepGame(s,input={},dt=1/30){if(!s||dt<=0)return s;dt=Math.min(dt,.1);s.time+=dt;for(const key of Object.keys(s.rpg.abilityCooldowns))s.rpg.abilityCooldowns[key]=Math.max(0,s.rpg.abilityCooldowns[key]-dt);for(const key of ['cloak','rally'])s.rpg.status[key]=Math.max(0,s.rpg.status[key]-dt);s.dayTime=(s.dayTime+dt*7)%86400;if(Math.floor(s.time/180)!==Math.floor((s.time-dt)/180)){const r=hash(Math.floor(s.time/180),0,s.seed);s.weather=r<.26?'storm':r<.49?'rain':'clear';emit(s,`WEATHER SHIFT / ${s.weather.toUpperCase()}`,'command');}updatePlayer(s,input,dt);
   if(s.zone==='operation')updateOperation(s,dt);else if(s.zone==='frontier'){discoverNearby(s);if(s.rpg.worldEnding==='archive')s.inventory.flux=Math.min(999,s.inventory.flux+dt*.12);}
   for(const e of [...s.enemies])if(e.hp>0)enemyBrain(s,e,dt);
+  resolveHostileShots(s,dt);
   for(const u of s.squad)squadBrain(s,u,dt);for(const d of s.drones)droneBrain(s,d,dt);s.drones=s.drones.filter(d=>s.time<d.expires);
   for(const b of s.buildings)if(b.zone===s.zone&&(s.zone!=='frontier'||(b.era||'medieval')===s.era))structureBrain(s,b,dt);
   for(const p of s.projectiles){p.ttl-=dt;const t=clamp(1-p.ttl/p.total,0,1);p.x+=(p.tx-p.x)*Math.min(1,dt/Math.max(.01,p.ttl+dt));p.z+=(p.tz-p.z)*Math.min(1,dt/Math.max(.01,p.ttl+dt));p.y=terrainHeight(p.x,p.z,s.seed,s.zone)+1+Math.sin(t*Math.PI)*9;if(p.ttl<=0)applyExplosion(s,p.tx,p.tz,p.kind==='orbital'?390:134,p.kind==='orbital'?22:10);}

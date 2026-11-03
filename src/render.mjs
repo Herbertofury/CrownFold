@@ -139,6 +139,15 @@ export class WorldRenderer {
  }
  drawWarfront(s,ui){const w=s.war,p=this.focus||s.player,clock=s.time;const base=(b,ally)=>{if(dist(b,p)>this.radius)return;const y=terrainHeight(b.x,b.z,s.seed,s.zone),c=ally?palette.mint:palette.red;this.add('cylinder',b.x,y+.35,b.z,18,1.0,18,palette.ash);for(const [dx,dz]of [[-8,-8],[-8,8],[8,-8],[8,8]]){this.add('cube',b.x+dx,y+5,b.z+dz,3.5,10,3.5,palette.metal);this.add('cone',b.x+dx,y+11,b.z+dz,4.5,3.5,4.5,c);}this.add('cube',b.x,y+3,b.z,13,6,13,palette.ash);this.add('gem',b.x,y+9,b.z,3,8,3,c,clock*.25,0,.65);this.healthMarker(b.x,y+14,b.z,b.hp/b.maxHp,c);};base(w.base,true);base(w.enemyBase,false);
  for(const a of w.anchors)if(a.hp>0&&dist(a,p)<this.radius){const y=terrainHeight(a.x,a.z,s.seed,s.zone);this.add('cylinder',a.x,y+5,a.z,6.8,10,6.8,palette.ash);for(const dx of [-5,5])this.add('cube',a.x+dx,y+8,a.z,2.2,10,2.2,palette.metal);this.add('ring',a.x,y+13,a.z,8,.45,8,palette.purple,s.time*.24,Math.PI/2,.75);this.add('gem',a.x,y+14,a.z,3,6,3,palette.purple,s.time*.4,0,.95);this.healthMarker(a.x,y+20,a.z,a.hp/a.maxHp,palette.red);}
+ // Destructible cross-era field cover, with visibly different materials.
+ for(const cover of w.cover||[])if(cover.hp>0&&dist(cover,p)<this.radius){
+  const y=terrainHeight(cover.x,cover.z,s.seed,s.zone),c=cover.kind==='resonance'?palette.amber:cover.kind==='clockwork'?palette.wood:cover.kind==='biomatter'?palette.mint:palette.purple;
+  const h=cover.kind==='clockwork'?6.2:4.9,r=cover.radius;
+  for(const side of [-1,1])this.add('cube',cover.x+side*r*.35,y+h*.52,cover.z,r*.54,h,r*.82,cover.kind==='biomatter'?palette.ash:palette.metal);
+  this.add('cube',cover.x,y+h+.15,cover.z,r*1.65,.58,r*.9,c,0,0,.75);
+  for(const side of [-1,1])this.add('gem',cover.x+side*r*.6,y+h+1.4,cover.z,1.3,2.8,1.3,c,clock*.3,0,.72);
+  if(cover.hp<cover.maxHp)this.healthMarker(cover.x,y+h+4,cover.z,cover.hp/cover.maxHp,c);
+ }
  if(w.act==='extraction'&&dist(w.extraction,p)<this.radius){this.monument(w.extraction.x,w.extraction.z,'extract',s);if(w.extraction.active){const y=terrainHeight(w.extraction.x,w.extraction.z,s.seed,s.zone);this.add('gem',w.extraction.x,y+12,w.extraction.z,2.5,12,2.5,palette.mint,s.time*.7,0,.9);}}
  for(const drop of w.supportDrops)if(dist(drop,p)<this.radius){const y=terrainHeight(drop.x,drop.z,s.seed,s.zone),c=drop.id==='epoch_lance'?palette.red:palette.mint;this.add('ring',drop.x,y+.5,drop.z,14,.65,14,c,s.time*.6,0,.8);this.add('gem',drop.x,y+5+Math.sin(s.time*5),drop.z,2.2,6,2.2,c,s.time,0,.9);}
  for(const n of w.nodes)if(dist(n,p)<this.radius){const y=terrainHeight(n.x,n.z,s.seed,s.zone),c=n.owner==='ally'?palette.mint:n.owner==='enemy'?palette.red:palette.amber;this.add('ring',n.x,y+.4,n.z,11,.5,11,c,clock*.16,0,.7);this.add('gem',n.x,y+4,n.z,2,7,2,c,clock*.3,0,.85);}
@@ -207,6 +216,11 @@ export class WorldRenderer {
     this.add('gem',pawn.x,py+2.25+bob,pawn.z-.37,.33,.24,.2,palette.mint,yaw,0,.8);
   }else{this.add('ring',pawn.x,pawnY+.21,pawn.z,3.3,.17,3.3,palette.amber,s.time*.1,0,.5);this.humanoid(pawn.x,pawnY,pawn.z,palette.steel,1.12,yaw,'player',s.time);}
   for(const shot of s.projectiles)this.add('sphere',shot.x,shot.y,shot.z,.5,.5,.5,palette.amber,0,0,1);
+  // These circles are gameplay telegraphs: move or dodge before the bolt arrives.
+  for(const shot of s.hostileShots||[])if(dist(shot,p)<this.radius){const y=terrainHeight(shot.tx,shot.tz,s.seed,s.zone),pulse=.5+Math.sin(s.time*14)*.25;
+    this.add('ring',shot.tx,y+.17,shot.tz,shot.radius*2,.23,shot.radius*2,palette.red,0,0,pulse+.2);
+    this.add('gem',shot.tx,y+.9,shot.tz,.4,1,.4,palette.amber,s.time*2,0,.65);
+  }
   for(const loot of s.pickups)if(dist(loot,p)<this.radius){const ly=terrainHeight(loot.x,loot.z,s.seed,s.zone);this.add('gem',loot.x,ly+1+Math.sin(s.time*4+loot.id)*.25,loot.z,.85,1.25,.85,loot.kind==='relic'?palette.purple:palette.amber,s.time*1.7,0,.75);this.add('ring',loot.x,ly+.2,loot.z,1.9,.2,1.9,palette.amber,0,0,.5);}
   for(const ef of s.effects){const age=s.time-ef.at,life=1-clamp(age/1.4,0,1),h=terrainHeight(ef.x,ef.z,s.seed,s.zone);if(ef.type==='tracer'||ef.type==='allytracer'||ef.type==='enemytracer'){
       const c=ef.type==='enemytracer'?palette.red:ef.type==='allytracer'?palette.mint:palette.amber;
@@ -214,6 +228,7 @@ export class WorldRenderer {
     }else if(ef.type==='explosion'){this.add('sphere',ef.x,h+2,ef.z,12*(1-life)+1,4.2*(1-life)+1,12*(1-life)+1,palette.amber,0,0,life*.95);this.add('ring',ef.x,h+.4,ef.z,ef.radius*(1-life)*2,.27,ef.radius*(1-life)*2,palette.red,0,0,life*.9);}
     else if(ef.type==='stasis'){this.add('ring',ef.x,h+.4,ef.z,ef.radius*2.0*(1-life*.4),.8,ef.radius*2.0*(1-life*.4),palette.purple,0,0,life*.85);}else if(['fold','echo','deploy','death','harvest'].includes(ef.type))this.add('ring',ef.x,h+.25+(1-life)*1.2,ef.z,(ef.type==='fold'?17:3)*(1.7-life),.2,(ef.type==='fold'?17:3)*(1.7-life),ef.type==='fold'?palette.purple:palette.mint,0,0,life*.85);
     else if(ef.type==='hit')this.add('gem',ef.x,h+1.3+(1-life),ef.z,life*.4,life*.8,life*.4,palette.amber,0,0,life);
+    else if(ef.type==='weakpoint'){this.add('ring',ef.x,h+2.1+(1-life)*1.4,ef.z,1.8*(1-life*.15),.25,1.8*(1-life*.15),palette.amber,0,Math.PI/2,life);this.add('gem',ef.x,h+2.4,ef.z,.5,1.2,.5,palette.amber,0,0,life);}
   }
   if(this.software)this.drawSoftware(s,ui);else this.drawGL(s);
  }

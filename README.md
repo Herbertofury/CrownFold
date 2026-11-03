@@ -4,13 +4,13 @@
 
 CrownFold is an original open-world third-person survival RPG with live RTS command, cross-era armies, and time-space terrain manipulation. You begin in **1278, The Crownless March**, and can cross **Advanced Rifts** into separate persistent procedural worlds in 12,400 BCE, 1889, 2086, and 8420. **War Rifts** open real-time army campaigns with a 36-minute limit and commanders who can keep fighting in third person. The original rotating 3D board game is preserved as a separate playable legacy mode.
 
-> **Current release: v0.7 experimental browser vertical slice. Not a finished AAA production or a Skyrim-scale handcrafted world.** The longer-term game vision is deliberately larger than the implemented prototype.
+> **Current release: v0.8 experimental browser vertical slice. Not a finished AAA production or a Skyrim-scale handcrafted world.** The longer-term game vision is deliberately larger than the implemented prototype.
 
 ## Play without installation
 
 1. Download/open [`dist/CROWNFOLD-RIFTFRONT.html`](dist/CROWNFOLD-RIFTFRONT.html) in a desktop browser; it embeds all scripts and styles and plays offline.
 2. **Enter the Open World** to start in the Crownless March. **Quick War** begins the first RTS war campaign, while **Classic 36 Min Rift Operation** starts the earlier six-stage shooter mission.
-3. For modular source, use Node.js 22+: `npm start` and visit `http://localhost:3000` (the server prints the address). `npm test` runs the deterministic simulation tests; `npm run build` recreates the offline HTML.
+3. For modular source, use Node.js 22+: `npm start` and visit `http://localhost:3000` (the server prints the address). `npm test` runs the deterministic simulation tests; `npm run build` recreates the offline HTML. `npm run benchmark` measures headless CPU battle-step costs (not actual game FPS).
 4. Open [`legacy/CROWNFOLD-ORIGINAL.html`](legacy/CROWNFOLD-ORIGINAL.html) for the original rotating 3D board-game experiment.
 
 ## Controls
@@ -38,7 +38,7 @@ In 2086, the public demonstration at the Meridian Exchange had a strange side ef
 
 A king may rent a railgun. A mammoth hunter may destroy an oracle army using unnetworked ambushes. A mechanic from 1889 can disassemble a futuristic droid, then sell its parts to a medieval monastery. The universal resource is not time: it is **the right to make a century your territory**.
 
-## Playable systems in v0.7
+## Playable systems in v0.8
 
 - Five distinct procedural overworld states, each with portals, landmarks, visual style, timeline log, NPC witnesses, a local RTS campaign, and persistent discovered sites.
 - Live third-person shooter with six firearms, six arcane abilities, stealth, survival meters, structures, inventory, crafting, companion recruitment, dialogue, quests, bounties, rare gear, and three earlier dungeon spaces.
@@ -53,6 +53,14 @@ A king may rent a railgun. A mammoth hunter may destroy an oracle army using unn
 - Commander heritages are chosen independently of world era; the calendar itself has no universal damage advantage. Combat counters depend on battalion roles, equipped sciences, and local Fold fields.
 - Persistent browser-local RPG save with backwards migration from the previous v0.3 prototype. War operations do not save mid-battle; victory rewards persist.
 - Original six-phase 36-minute shooter operations plus original standalone chess-inspired rotating board game.
+
+### Warforged combat and tactical movement — new in v0.8
+
+- **Breakable cover:** every War Rift map now has seven destructible battlefield cover positions, with historically inspired alternate aesthetics. Cover blocks both formations and ranged fire until breached.
+- **Route-aware formations:** commanded battalions use capped grid A* and cached waypoints to move around intact cover instead of walking directly through it. Destruction forces route recalculation.
+- **Dodgable telegraphed enemy fire:** ranged hostiles aim at an indicated area before damage lands. Movement and dodge rolls can escape it; reward-based headshots stagger enemies and deal extra damage.
+- **Reproducible war stress bench:** `npm run benchmark` simulates 80 aggregate battalions on each of five maps for 450 steps. CPU-only results must not be confused with real rendering FPS or individually simulated soldiers.
+- [v0.8 implementation and acceptance gates](docs/WARFORGED_V08.md).
 
 ## Not yet implemented
 
@@ -79,12 +87,14 @@ index.html, style.css          Developer mode web UI
 src/temporal.mjs              Era descriptions, portal maps, Chronofold and affinity
 src/lineage.mjs               Commander heritage, lost technologies and fusion doctrines
 src/war.mjs                   War campaigns, battalions, economy and enemy strategy
+src/battlefield.mjs           Destructible cover geometry and A* formation routing
 src/sim.mjs                   Real-time movement, combat, portals, missions, save/load
 src/rpg.mjs                   RPG quests, NPCs, factions, crafting and companions
 src/render.mjs                Procedural WebGL2 / software 3D world renderer
 src/game.mjs                  Input, menus, audio, simulation and renderer glue
 legacy/CROWNFOLD-ORIGINAL.html Original tabletop experiment
 scripts/build.mjs             Self-contained offline HTML builder
+scripts/benchmark.mjs         5-map aggregate-formation CPU stress harness
 tests/*                       Deterministic tests and browser smoke checks
 wiki/*                        Curated wiki source pages
 docs/*                        Extended prior design and QA notes

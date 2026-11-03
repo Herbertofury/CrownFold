@@ -13,7 +13,7 @@ with sync_playwright() as pw:
  try:
   page.set_content((ROOT/'dist/CROWNFOLD-RIFTFRONT.html').read_text(),wait_until='domcontentloaded')
   page.wait_for_function('window.__riftfront && !!window.__riftfront.renderer',timeout=30000)
-  checks['v06_brand']='CROWNFOLD' in page.locator('#menu').inner_text() and 'v0.6' in page.locator('.version').inner_text()
+  checks['crownfold_brand']='CROWNFOLD' in page.locator('#menu').inner_text() and 'v0.' in page.locator('.version').inner_text()
   page.locator('#new-game').click();page.wait_for_timeout(180)
   page.evaluate('window.__riftfront.state.spawnTimer=1e9;window.__riftfront.state.enemies=[]')
   page.keyboard.press('KeyY');page.wait_for_timeout(90)

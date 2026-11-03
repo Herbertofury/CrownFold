@@ -1,3 +1,12 @@
+# Latest QA — v0.8 Warforged (2026-11-03)
+
+- **176/176** Node simulation tests passing, including 11 new tests for cover, routing, dodging and precision hits.
+- **8/8** new Chromium browser checks passed. The prior browser suites were re-run individually and passed; earlier grouped execution timed out mid-batch and was recovered individually.
+- A new reproducible 5-map / 80-formation / 450-step **headless CPU benchmark** runs via `npm run benchmark` and does not measure real graphics frame rates.
+- See [`WARFORGED_V08.md`](WARFORGED_V08.md) for what was tested, honest production limitations and next steps.
+
+---
+
 # CrownFold v0.7 — QA update (2026-11-03)
 
 **Release stage: experimental, dependency-free browser vertical slice.** No claims of AAA parity, measured 30-minute human playthroughs or production GPU performance.
