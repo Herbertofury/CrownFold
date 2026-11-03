@@ -1,0 +1,38 @@
+from playwright.sync_api import sync_playwright
+import json, pathlib, time
+ROOT=pathlib.Path(__file__).resolve().parents[1]
+DIR=ROOT/'test-results';DIR.mkdir(exist_ok=True)
+with sync_playwright() as pw:
+  browser=pw.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--enable-webgl'])
+  page=browser.new_page(viewport={'width':1600,'height':900},device_scale_factor=1)
+  logs=[]
+  page.on('pageerror',lambda e:logs.append('PAGEERROR: '+str(e)))
+  page.on('console',lambda msg:logs.append('CONSOLE: '+msg.text) if msg.type=='error' else None)
+  page.set_content((ROOT/'dist'/'CROWNFOLD-RIFTFRONT.html').read_text(),wait_until='domcontentloaded')
+  page.wait_for_function('window.__riftfront && !!window.__riftfront.renderer',timeout=30000)
+  page.wait_for_timeout(650)
+  page.screenshot(path=str(DIR/'menu.png'))
+  menu=page.locator('#menu').is_visible()
+  graphics=page.evaluate('({fallback:window.__riftfront.renderer.software,w:document.querySelector("#world").width,h:document.querySelector("#world").height})')
+  page.locator('#new-game').click()
+  page.wait_for_timeout(900)
+  page.screenshot(path=str(DIR/'frontier.png'))
+  game=page.evaluate('({active:window.__riftfront.active,mode:window.__riftfront.state.zone,units:window.__riftfront.state.squad.length,simTime:window.__riftfront.state.time,ammo:window.__riftfront.state.player.ammo.rifle})')
+  page.keyboard.down('KeyW');page.wait_for_timeout(600);page.keyboard.up('KeyW')
+  moved=page.evaluate('window.__riftfront.state.player.z')
+  page.keyboard.press('KeyQ');page.wait_for_timeout(200)
+  folded=page.evaluate('window.__riftfront.state.stats.folds')
+  page.keyboard.press('Tab');page.wait_for_timeout(250)
+  command=page.evaluate('window.__riftfront.commander');page.screenshot(path=str(DIR/'commander.png'))
+  page.keyboard.press('Tab');page.wait_for_timeout(180)
+  page.evaluate('document.exitPointerLock?.()')
+  page.keyboard.press('KeyB');page.wait_for_timeout(100)
+  build=page.locator('#build-panel').is_visible();page.screenshot(path=str(DIR/'build.png'))
+  page.locator('#close-build').click()
+  page.evaluate('window.__riftfront.sim.enterOperation(window.__riftfront.state,0)')
+  page.wait_for_timeout(600)
+  page.screenshot(path=str(DIR/'operation.png'))
+  op=page.evaluate('({mode:window.__riftfront.state.zone,stages:window.__riftfront.state.operation?.objectives.length,time:window.__riftfront.state.operation?.timeLeft})')
+  result={'menu':menu,'renderer':graphics,'game':game,'movedZ':moved,'fold':folded,'commander':command,'buildOpen':build,'operation':op,'errors':logs}
+  (DIR/'smoke.json').write_text(json.dumps(result,indent=2));print(json.dumps(result,indent=2))
+  browser.close()
