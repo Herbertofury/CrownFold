@@ -61,12 +61,25 @@ export const WAR_CAMPAIGNS=Object.freeze([
  {id:'the_blackout_coup',name:'THE BLACKOUT COUP',era:'neon',region:'The Electric Republic',subtitle:'An army of cathedral harmonics undermines the grid. Rescue the city using both networks and steel.',difficulty:3,mode:'war',enemyEra:'medieval',enemyDoctrine:'bulwark'},
  {id:'the_unborn_palace',name:'THE UNBORN PALACE',era:'farfuture',region:'The Last Tomorrow',subtitle:'The Hollow Empress sees every future but one: an army guided by an unwritten past.',difficulty:4,mode:'war',enemyEra:'primeval',enemyDoctrine:'relentless'}
 ]);
+// v0.7 Operations 2.0: a campaign is a four-act battle, not a base-health speedrun.
+// Objectives are state driven: no arbitrary real-time lockout prevents skilled play.
+export const WAR_ACTS=Object.freeze({
+ foothold:{name:'I / THE BEACHHEAD',description:'Secure and hold any two timewells for 24 seconds. A supplied front unlocks the inner siege.'},
+ anchors:{name:'II / BREAK THE LATTICE',description:'Destroy both Chronal Anchors with guns, artillery or your battalions to unseal the enemy citadel.'},
+ throne:{name:'III / THE LAST CITADEL',description:'Breach the now-exposed Chronal Throne. Protect your own supply line while assaulting.'},
+ extraction:{name:'IV / HOLD THE EXIT',description:'Reach the evacuation beacon with your soldier or battalions, call extraction, and defend the corridor.'}
+});
+export const WAR_SUPPORT=Object.freeze({
+ epoch_lance:{name:'EPOCH LANCE',cost:105,cooldown:70,delay:3.5,description:'Target the selected battalion position or your forward aim. A delayed spacetime strike breaches structures and scatters enemies.'},
+ timefall_pod:{name:'TIMEFALL DROP',cost:132,cooldown:85,delay:5.5,description:'Request a mixed-century reserve company at your position or selected battalion. Requires population capacity; no foundry needed.'}
+});
+const HERITAGE_RESERVES=Object.freeze({medieval:'longbow',primeval:'hunters',steam:'clockguard',neon:'signalers',farfuture:'synths'});
 function pushEvent(w,text){w.events.push(text);if(w.events.length>8)w.events.shift();}
 function makeGroup(s,type,side,x,z){const def=BATTALIONS[type],id=++s.nextId;return {id,type,side,era:def.era,x,z,tx:0,tz:side==='ally'?-62:30,order:side==='ally'?'defend':'assault',stance:'balanced',count:def.count,maxCount:def.count,hp:def.hp,range:def.range,attackCooldown:id%5/8,morale:100,buffs:{ward:0,rush:0,hush:0}};}
 export function createWarfront(s,campaign){const enemyEra=campaign.enemyEra||'neon',friendlyEra=campaign.era||s.era||'medieval';
  const army=[makeGroup(s,'pikemen','ally',-5,7),makeGroup(s,'longbow','ally',9,5)];
  const choices=Object.keys(BATTALIONS).filter(id=>BATTALIONS[id].era===enemyEra);const enemyArmy=[makeGroup(s,choices[0]||'pikemen','enemy',0,-103)];
- return {campaign:campaign.id,era:friendlyEra,enemyEra,supplies:205,income:2.6,popCap:120,population:army.reduce((n,a)=>n+a.count,0),base:{x:0,z:16,hp:2500,maxHp:2500},enemyBase:{x:0,z:-150,hp:2900,maxHp:2900},anchors:[{id:'west',name:'WESTERN CHRONAL ANCHOR',x:-42,z:-114,hp:860,maxHp:860},{id:'east',name:'EASTERN CHRONAL ANCHOR',x:42,z:-116,hp:860,maxHp:860}],nodes:[{x:-72,z:-45,owner:'neutral',progress:0},{x:72,z:-48,owner:'neutral',progress:0},{x:1,z:-70,owner:'enemy',progress:0}],buildings:[{kind:'barracks',x:-13,z:14,hp:850}],queue:[],army,enemyArmy,enemyWaveTimer:27,enemyDoctrine:campaign.enemyDoctrine||'pressure',enemySupplies:220,enemyIncome:2.3,enemyExhaustion:0,enemyWaves:0,elapsed:0,events:[],victory:null,selectedBattalionId:null,powerCooldowns:{},riftSurgeNext:70,riftSurgeIndex:0,expedition:null,expeditionNext:24,expeditionIndex:0,expeditionsCompleted:0,expeditionsFailed:0};
+ return {campaign:campaign.id,era:friendlyEra,enemyEra,supplies:205,income:2.6,popCap:120,population:army.reduce((n,a)=>n+a.count,0),base:{x:0,z:16,hp:2500,maxHp:2500},enemyBase:{x:0,z:-150,hp:2900,maxHp:2900},anchors:[{id:'west',name:'WESTERN CHRONAL ANCHOR',x:-42,z:-114,hp:860,maxHp:860},{id:'east',name:'EASTERN CHRONAL ANCHOR',x:42,z:-116,hp:860,maxHp:860}],nodes:[{x:-72,z:-45,owner:'neutral',progress:0},{x:72,z:-48,owner:'neutral',progress:0},{x:1,z:-70,owner:'enemy',progress:0}],buildings:[{kind:'barracks',x:-13,z:14,hp:850}],queue:[],army,enemyArmy,enemyWaveTimer:27,enemyDoctrine:campaign.enemyDoctrine||'pressure',enemySupplies:220,enemyIncome:2.3,enemyExhaustion:0,enemyWaves:0,elapsed:0,events:[],victory:null,selectedBattalionIds:[],controlGroups:{},act:'foothold',footholdHold:0,footholdTarget:24,extraction:{x:0,z:-96,active:false,progress:0,target:36,contested:false,nextWave:9,waves:0},supportDrops:[],supportCooldowns:{},selectedBattalionId:null,powerCooldowns:{},riftSurgeNext:70,riftSurgeIndex:0,expedition:null,expeditionNext:24,expeditionIndex:0,expeditionsCompleted:0,expeditionsFailed:0};
 }
 export function trainBattalion(s,type){const w=s.war,def=BATTALIONS[type];if(!w||!def||w.victory||s.zone!=='operation')return false;
  if(w.population+def.count>w.popCap||!w.buildings.some(b=>b.kind===def.building)||w.supplies<def.cost)return false;
@@ -75,8 +88,20 @@ export function trainBattalion(s,type){const w=s.war,def=BATTALIONS[type];if(!w|
 export function constructWarBuilding(s,kind){const w=s.war,def=WAR_BUILDINGS[kind];if(!w||!def||w.victory||s.zone!=='operation'||w.supplies<def.cost||w.buildings.length>=15)return false;
  const n=w.buildings.filter(b=>b.kind===kind).length;w.supplies-=def.cost;w.buildings.push({kind,x:s.player.x+(-1)**n*(12+n*6),z:s.player.z+8+(n%3)*6,hp:def.hp});pushEvent(w,`${def.name} CONSTRUCTED`);return true;
 }
-export function selectWarBattalion(s,id=null){const w=s.war;if(!w)return false;if(id===null){w.selectedBattalionId=null;return true;}if(!w.army.some(g=>g.id===id&&g.count>0))return false;w.selectedBattalionId=id;return true;}
-function selectedGroups(w){return w.selectedBattalionId===null?w.army:w.army.filter(g=>g.id===w.selectedBattalionId);}
+export function selectWarBattalion(s,id=null){const w=s?.war;if(!w)return false;if(id===null){w.selectedBattalionId=null;w.selectedBattalionIds=[];return true;}return selectWarBattalions(s,[id]);}
+export function selectWarBattalions(s,ids,append=false){const w=s?.war;if(!w||!Array.isArray(ids))return false;
+ const allowed=new Set(w.army.filter(g=>g.count>0).map(g=>g.id));
+ const next=[...(append?w.selectedBattalionIds||[]:[]),...ids].filter((id,i,all)=>allowed.has(id)&&all.indexOf(id)===i);
+ if(!next.length)return false;w.selectedBattalionIds=next;w.selectedBattalionId=next.length===1?next[0]:null;return true;
+}
+export function setWarControlGroup(s,index){const w=s?.war;if(!w||!Number.isInteger(index)||index<1||index>5)return false;
+ const selected=selectedGroups(w).filter(g=>g.count>0).map(g=>g.id);if(!selected.length)return false;
+ w.controlGroups[index]=selected;pushEvent(w,`CONTROL GROUP ${index} / ${selected.length} FORMATIONS SAVED`);return true;
+}
+export function recallWarControlGroup(s,index){const w=s?.war;if(!w||!Number.isInteger(index)||index<1||index>5)return false;
+ return selectWarBattalions(s,w.controlGroups[index]||[],false);
+}
+function selectedGroups(w){return w.selectedBattalionIds?.length?w.army.filter(g=>w.selectedBattalionIds.includes(g.id)):w.selectedBattalionId===null?w.army:w.army.filter(g=>g.id===w.selectedBattalionId);}
 export function setWarStance(s,stance){const w=s.war;if(!w||!WAR_STANCES[stance]||w.victory)return false;const groups=selectedGroups(w);if(!groups.length)return false;for(const g of groups)g.stance=stance;pushEvent(w,`${WAR_STANCES[stance].name} STANCE / ${groups.length} BATTALION${groups.length===1?'':'S'}`);return true;}
 export function warOrder(s,order,x,z){const w=s.war;if(!w||w.victory||!['follow','move','defend','assault'].includes(order))return false;const groups=selectedGroups(w);if(!groups.length)return false;
  for(const b of groups){b.order=order;b.tx=Number.isFinite(x)?x:s.player.x;b.tz=Number.isFinite(z)?z:s.player.z;}
@@ -84,13 +109,82 @@ export function warOrder(s,order,x,z){const w=s.war;if(!w||w.victory||!['follow'
 }
 export function warCastPower(s,id){const w=s.war,power=WAR_POWERS[id];if(!w||!power||w.victory||s.zone!=='operation'||!equippedTech(s,power.unlock))return false;
  if((w.powerCooldowns[id]||0)>0||w.supplies<power.cost)return false;
- const selected=selectedGroups(w),center=w.selectedBattalionId!==null&&selected.length?selected[0]:s.player,near=(b,r=power.radius)=>distance(b,center)<=r;
+ const selected=selectedGroups(w),center=(w.selectedBattalionIds?.length||w.selectedBattalionId!==null)&&selected.length?selected[0]:s.player,near=(b,r=power.radius)=>distance(b,center)<=r;
  let count=0;
  if(id==='oathwall'){for(const g of w.army)if(g.count>0&&near(g)){g.buffs.ward=Math.max(g.buffs.ward,power.duration);g.hp=Math.min(BATTALIONS[g.type].hp,g.hp+17);count++;}}
  if(id==='flux_rush'){for(const g of w.army)if(g.count>0&&near(g)){g.buffs.rush=Math.max(g.buffs.rush,power.duration);count++;}}
  if(id==='hushfield'){for(const g of w.enemyArmy)if(g.count>0&&near(g)){g.buffs.hush=Math.max(g.buffs.hush,power.duration);count++;}}
  if(id==='gravity_root'){const n=w.nodes.filter(n=>n.owner!=='enemy'&&near(n,power.radius+8)).sort((a,b)=>distance(a,center)-distance(b,center))[0];if(n){n.progress=Math.min(12,n.progress+9);if(n.progress>=12){n.owner='ally';n.progress=0;}for(const g of w.army)if(near(g,22))g.buffs.ward=Math.max(g.buffs.ward,6);count++;}}
  if(count===0)return false;w.supplies-=power.cost;w.powerCooldowns[id]=power.cooldown*lineageCooldownFactor(s)*(1-.05*(s.temporal?.skill.oracle||0));pushEvent(w,`${power.name} DEPLOYED / ${count} AFFECTED`);return true;
+}
+export function warObjective(w){
+ if(!w)return null;
+ const act=WAR_ACTS[w.act]||WAR_ACTS.foothold;
+ if(w.act==='foothold'){const held=w.nodes.filter(n=>n.owner==='ally').length;const target=w.nodes.find(n=>n.owner!=='ally')||w.nodes[1];return {act:w.act,name:act.name,description:act.description,progress:w.footholdHold,target:w.footholdTarget,x:target.x,z:target.z,detail:`${held}/2 REQUIRED WELLS / ${Math.ceil(w.footholdHold)}/${w.footholdTarget}s HOLD`};}
+ if(w.act==='anchors'){const live=w.anchors.filter(a=>a.hp>0);const anchor=live[0]||w.enemyBase;return {act:w.act,name:act.name,description:act.description,progress:w.anchors.reduce((n,a)=>n+(a.maxHp-a.hp),0),target:w.anchors.reduce((n,a)=>n+a.maxHp,0),x:anchor.x,z:anchor.z,detail:`${live.length}/2 ANCHORS STANDING`};}
+ if(w.act==='throne')return {act:w.act,name:act.name,description:act.description,progress:w.enemyBase.maxHp-w.enemyBase.hp,target:w.enemyBase.maxHp,x:w.enemyBase.x,z:w.enemyBase.z,detail:`THRONE ${Math.ceil(w.enemyBase.hp)} HP`};
+ const ex=w.extraction;return {act:'extraction',name:act.name,description:act.description,progress:ex.progress,target:ex.target,x:ex.x,z:ex.z,detail:ex.active?`EVAC ${Math.ceil(ex.progress)}/${ex.target}s ${ex.contested?' / CONTESTED':''}`:'CALL EXTRACTION / E NEAR BEACON OR FROM COMMAND VIEW'};
+}
+export function canSignalWarExtraction(s){const w=s?.war;if(!w||w.victory||w.act!=='extraction'||w.extraction.active||s.zone!=='operation')return false;
+ const site=w.extraction;return distance(s.player,site)<13||w.army.some(g=>g.count>0&&distance(g,site)<18);
+}
+export function signalWarExtraction(s){const w=s?.war;if(!canSignalWarExtraction(s))return false;
+ w.extraction.active=true;w.extraction.nextWave=8;pushEvent(w,'EVACUATION SIGNAL LIT / HOLD THE TEMPORAL CORRIDOR');return true;
+}
+export function callWarSupport(s,id,x=null,z=null){const w=s?.war,spec=WAR_SUPPORT[id];if(!w||!spec||w.victory||s.zone!=='operation')return false;
+ if(w.supplies<spec.cost||(w.supportCooldowns[id]||0)>0)return false;
+ const selected=w.army.find(g=>g.id===(w.selectedBattalionIds?.[0]??w.selectedBattalionId)&&g.count>0);
+ const aim=s.player.yaw||0,base=selected||s.player;
+ const tx=Number.isFinite(x)?x:id==='epoch_lance'&&!selected?base.x+Math.sin(aim)*34:base.x;
+ const tz=Number.isFinite(z)?z:id==='epoch_lance'&&!selected?base.z-Math.cos(aim)*34:base.z;
+ if(!Number.isFinite(tx)||!Number.isFinite(tz)||distance({x:tx,z:tz},w.base)>230)return false;
+ const reserve=HERITAGE_RESERVES[s.temporal?.lineage?.commanderEra]||'longbow';
+ if(id==='timefall_pod'&&w.population+BATTALIONS[reserve].count>w.popCap)return false;
+ w.supplies-=spec.cost;w.supportCooldowns[id]=spec.cooldown;
+ w.supportDrops.push({id,x:tx,z:tz,remaining:spec.delay,unit:id==='timefall_pod'?reserve:null});
+ if(id==='timefall_pod')w.population+=BATTALIONS[reserve].count;
+ pushEvent(w,`${spec.name} INBOUND / ${Math.ceil(spec.delay)}s TO IMPACT`);return true;
+}
+function processWarSupport(s,dt){const w=s.war;
+ for(const id of Object.keys(w.supportCooldowns))w.supportCooldowns[id]=Math.max(0,w.supportCooldowns[id]-dt);
+ for(const drop of w.supportDrops){drop.remaining-=dt;if(drop.remaining>0)continue;
+  if(drop.id==='epoch_lance'){
+   warExplosion(s,drop.x,drop.z,480,17);
+   s.effects.push({type:'explosion',x:drop.x,z:drop.z,at:s.time,radius:17});
+   pushEvent(w,'EPOCH LANCE IMPACT / LOCAL TIMELINE FRACTURED');
+  }else if(drop.id==='timefall_pod'){
+   const g=makeGroup(s,drop.unit,'ally',drop.x,drop.z);g.order='defend';g.tx=drop.x;g.tz=drop.z;
+   w.army.push(g);s.effects.push({type:'deploy',x:drop.x,z:drop.z,at:s.time});
+   pushEvent(w,`TIMEFALL RESERVES LANDED / ${BATTALIONS[drop.unit].name}`);
+  }
+ }
+ w.supportDrops=w.supportDrops.filter(d=>d.remaining>0);
+}
+function warExtractionWave(s){const w=s.war,ex=w.extraction;if(ex.waves>=3||w.enemyArmy.length>=22)return;
+ const list=w.enemyDoctrine==='relentless'?['hunters','murmur']:w.enemyDoctrine==='raider'?['riders','nullcouriers']:['clockguard','longbow'];
+ const type=list[ex.waves%list.length],def=BATTALIONS[type];if(w.enemySupplies<def.cost)return;
+ w.enemySupplies-=def.cost;const side=ex.waves%2?-1:1;
+ const g=makeGroup(s,type,'enemy',side*93,-116+ex.waves*14);g.order='move';g.tx=ex.x;g.tz=ex.z;g.stance='charge';w.enemyArmy.push(g);
+ ex.waves++;pushEvent(w,`ENEMY REARGUARD / ${BATTALIONS[type].name} APPROACHING EVAC`);
+}
+function stepWarActs(s,dt){const w=s.war;if(w.base.hp<=0){w.victory='enemy';pushEvent(w,'YOUR CITADEL FELL / CAMPAIGN LOST');return;}
+ if(w.act==='foothold'){
+  const count=w.nodes.filter(n=>n.owner==='ally').length;
+  w.footholdHold=clamp(w.footholdHold+(count>=2?dt:-dt*.7),0,w.footholdTarget);
+  if(w.footholdHold>=w.footholdTarget){w.act='anchors';w.supplies=Math.min(900,w.supplies+65);pushEvent(w,'BEACHHEAD SECURED / +65 SUPPLIES / BREAK THE TWO ANCHORS');}
+ }else if(w.act==='anchors'){
+  if(!activeAnchors(w).length){w.act='throne';pushEvent(w,'THE CHRONAL SHIELD HAS FALLEN / ASSAULT THE THRONE');}
+ }else if(w.act==='throne'){
+  if(w.enemyBase.hp<=0){w.act='extraction';w.enemyWaveTimer=1e9;w.expedition=null;pushEvent(w,'THRONE DOWN / EXTRACT BEFORE THE RIFT COLLAPSES');}
+ }else if(w.act==='extraction'){
+  const ex=w.extraction;if(!ex.active)return;
+  ex.nextWave-=dt;if(ex.nextWave<=0){warExtractionWave(s);ex.nextWave=12;}
+  const allies=w.army.some(g=>g.count>0&&distance(g,ex)<17),player=distance(s.player,ex)<12;
+  const enemy=w.enemyArmy.some(g=>g.count>0&&distance(g,ex)<19);
+  ex.contested=enemy;
+  ex.progress=clamp(ex.progress+(allies||player?enemy?-.6:1:-.2)*dt,0,ex.target);
+  if(ex.progress>=ex.target){w.victory='ally';pushEvent(w,'EXTRACTION COMPLETE / WAR WON / YOUR COMPANY SURVIVED');}
+ }
 }
 function nearOwnedWell(w,group){return w.nodes.some(n=>n.owner===group.side&&distance(n,group)<22);}
 export function warCounterBonus(attackerType,defenderType){
@@ -127,7 +221,7 @@ function hitAnchor(w,anchor,damage){if(!anchor||anchor.hp<=0||!Number.isFinite(d
  return true;
 }
 function damageEnemyBase(w,damage){const ward=activeAnchors(w).length;
- w.enemyBase.hp=Math.max(0,w.enemyBase.hp-damage*(ward===2?.08:ward===1?.35:1));
+ w.enemyBase.hp=Math.max(w.act==='throne'||w.act==='extraction'?0:Math.ceil(w.enemyBase.maxHp*.45),w.enemyBase.hp-damage*(ward===2?.08:ward===1?.35:1));
 }
 function fire(s,attacker,targets,base,dt){if(attacker.count<=0)return;const def=BATTALIONS[attacker.type];attacker.attackCooldown=Math.max(0,attacker.attackCooldown-dt);if(attacker.attackCooldown>0)return;
  let target=null,d=Infinity;for(const g of targets){if(g.count<=0)continue;const gap=distance(attacker,g);if(gap<d){d=gap;target=g;}}
@@ -243,11 +337,11 @@ export function warRiftSurge(s){const w=s.war;if(!w||w.victory)return false;cons
  let moved=0;for(const g of [...w.army,...w.enemyArmy])if(g.count>0&&inSector(g)){rotate(g);moved++;}for(const n of w.nodes)if(inSector(n)){rotate(n);moved++;}for(const a of activeAnchors(w))if(inSector(a)){rotate(a);moved++;}
  stampFacet(s,anchor.x,anchor.z,1,era);pushEvent(w,`RIFT STORM / ${ERAS[era].name} / ${moved} RELOCATED`);return true;
 }
-export function stepWarfront(s,dt){const w=s.war;if(!w||w.victory)return w?.victory||null;dt=clamp(dt,0,1);w.elapsed+=dt;w.enemyWaveTimer-=dt;w.riftSurgeNext-=dt;
+export function stepWarfront(s,dt){const w=s.war;if(!w||w.victory)return w?.victory||null;dt=clamp(dt,0,1);w.elapsed+=dt;w.enemyWaveTimer-=dt;w.riftSurgeNext-=dt;processWarSupport(s,dt);
  for(const id of Object.keys(w.powerCooldowns))w.powerCooldowns[id]=Math.max(0,w.powerCooldowns[id]-dt);
  const held=w.nodes.filter(n=>n.owner==='ally').length;w.income=(2.1+held*2.3+w.buildings.filter(b=>b.kind==='foundry').length*.18)*lineageEconomy(s)*(1+.07*(s.temporal?.skill.engineer||0));w.supplies=Math.min(900,w.supplies+w.income*dt);
  const enemyHeld=w.nodes.filter(n=>n.owner==='enemy').length;
- w.enemyIncome=(1.75+enemyHeld*2.25)*(1+.08*(s.operation?.difficulty||1));
+ w.enemyIncome=w.act==='extraction'?0:(1.75+enemyHeld*2.25)*(1+.08*(s.operation?.difficulty||1));
  w.enemySupplies=Math.min(900,w.enemySupplies+w.enemyIncome*dt);
  w.enemyExhaustion=Math.max(0,w.enemyExhaustion-dt);
  for(const item of w.queue){item.remaining-=dt;if(item.remaining<=0){const i=w.buildings.find(b=>b.kind===BATTALIONS[item.type].building)||w.base;w.army.push(makeGroup(s,item.type,'ally',i.x+3,i.z-6));pushEvent(w,`${BATTALIONS[item.type].name} READY`);}}
@@ -261,9 +355,9 @@ export function stepWarfront(s,dt){const w=s.war;if(!w||w.victory)return w?.vict
   else node.progress*=.99;
  }
  w.army=w.army.filter(g=>g.count>0);w.enemyArmy=w.enemyArmy.filter(g=>g.count>0);
- if(w.selectedBattalionId!==null&&!w.army.some(g=>g.id===w.selectedBattalionId))w.selectedBattalionId=null;
- w.population=w.army.reduce((n,b)=>n+b.count,0)+w.queue.reduce((n,q)=>n+BATTALIONS[q.type].count,0);
- if(w.enemyWaveTimer<=0){const type=chooseEnemyBattalion(s);
+ w.selectedBattalionIds=(w.selectedBattalionIds||[]).filter(id=>w.army.some(g=>g.id===id));if(w.selectedBattalionIds.length===1)w.selectedBattalionId=w.selectedBattalionIds[0];else if(w.selectedBattalionIds.length!==1)w.selectedBattalionId=null;
+ w.population=w.army.reduce((n,b)=>n+b.count,0)+w.queue.reduce((n,q)=>n+BATTALIONS[q.type].count,0)+w.supportDrops.filter(d=>d.id==='timefall_pod').reduce((n,d)=>n+BATTALIONS[d.unit].count,0);
+ if(w.enemyWaveTimer<=0&&w.act!=='extraction'){const type=chooseEnemyBattalion(s);
   if(type&&w.enemyArmy.length<28){w.enemySupplies-=BATTALIONS[type].cost;
    const group=makeGroup(s,type,'enemy',w.enemyBase.x+(w.enemyArmy.length%3-1)*7,w.enemyBase.z+9);
    if(w.enemyDoctrine==='bulwark')group.stance='bulwark';else if(w.enemyDoctrine==='raider')group.stance='skirmish';else if(w.enemyDoctrine==='relentless')group.stance='charge';
@@ -277,7 +371,7 @@ export function stepWarfront(s,dt){const w=s.war;if(!w||w.victory)return w?.vict
   if(building.kind==='sanctuary')for(const ally of w.army)if(ally.count>0&&distance(building,ally)<25)ally.hp=Math.min(BATTALIONS[ally.type].hp,ally.hp+dt*5);
  }
  if(w.riftSurgeNext<=0){warRiftSurge(s);w.riftSurgeNext=76;}
- if(w.enemyBase.hp<=0){w.victory='ally';pushEvent(w,'THRONE BROKEN / CAMPAIGN WON');}if(w.base.hp<=0){w.victory='enemy';pushEvent(w,'YOUR CITADEL FELL / CAMPAIGN LOST');}
+ stepWarActs(s,dt);
  return w.victory;
 }
-export function warSummary(w){if(!w)return null;return {supplies:Math.floor(w.supplies),income:Math.round(w.income*10)/10,population:w.population,popCap:w.popCap,held:w.nodes.filter(n=>n.owner==='ally').length,alliedBattalions:w.army.length,enemyBattalions:w.enemyArmy.length,enemyBaseHp:Math.round(w.enemyBase.hp),baseHp:Math.round(w.base.hp),anchorsRemaining:activeAnchors(w).length,queue:w.queue.length,stormIn:Math.ceil(w.riftSurgeNext),selectedBattalionId:w.selectedBattalionId,enemyDoctrine:WAR_ENEMY_DOCTRINES[w.enemyDoctrine]?.name||'ADAPTIVE',enemySupplies:Math.floor(w.enemySupplies),expedition:w.expedition?{kind:w.expedition.type,name:WAR_EXPEDITIONS[w.expedition.type]?.name,progress:Math.round(w.expedition.progress*100),seconds:Math.ceil(w.expedition.timeLeft)}:null,crisesResolved:w.expeditionsCompleted,crisesLost:w.expeditionsFailed};}
+export function warSummary(w){if(!w)return null;const objective=warObjective(w);return {objective,act:w.act,extractionActive:w.extraction.active,supportDrops:w.supportDrops.map(d=>({id:d.id,seconds:Math.ceil(d.remaining)})),supportCooldowns:{...w.supportCooldowns},supplies:Math.floor(w.supplies),income:Math.round(w.income*10)/10,population:w.population,popCap:w.popCap,held:w.nodes.filter(n=>n.owner==='ally').length,alliedBattalions:w.army.length,enemyBattalions:w.enemyArmy.length,enemyBaseHp:Math.round(w.enemyBase.hp),baseHp:Math.round(w.base.hp),anchorsRemaining:activeAnchors(w).length,queue:w.queue.length,stormIn:Math.ceil(w.riftSurgeNext),selectedBattalionId:w.selectedBattalionId,selectedBattalionIds:[...(w.selectedBattalionIds||[])],enemyDoctrine:WAR_ENEMY_DOCTRINES[w.enemyDoctrine]?.name||'ADAPTIVE',enemySupplies:Math.floor(w.enemySupplies),expedition:w.expedition?{kind:w.expedition.type,name:WAR_EXPEDITIONS[w.expedition.type]?.name,progress:Math.round(w.expedition.progress*100),seconds:Math.ceil(w.expedition.timeLeft)}:null,crisesResolved:w.expeditionsCompleted,crisesLost:w.expeditionsFailed};}

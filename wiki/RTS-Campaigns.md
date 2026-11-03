@@ -2,7 +2,7 @@
 
 ## Shooter ↔ commander, in real time
 
-You physically fight in third person with weapons and powers. Press `TAB` at any moment to raise the bird's-eye tactical view **without pausing the simulation**. Select Move / Assault / Defend / Follow and order all allied battalions toward a target. The battalions retain their orders when you return to third-person action; your own guns, explosions and folded terrain can affect the war.
+You physically fight in third person with weapons and powers. Press `TAB` at any moment to raise the bird's-eye tactical view **without pausing the simulation**. Independently pan with WASD, zoom with the mouse wheel, box-select battalions, Shift-click to add formations and right-click to order the selected groups. Save groups with Ctrl+1–5, recall with Alt+1–5, and press backtick (`) to collapse the console to a compact command strip. Select Move / Assault / Defend / Follow; the soldier remains where you left them and can return to live third-person combat at any time. The battalions retain their orders when you return to third-person action; your own guns, explosions and folded terrain can affect the war.
 
 ## The implemented warfare economy
 
@@ -11,7 +11,7 @@ You physically fight in third person with weapons and powers. Press `TAB` at any
 - **Production:** War Supplies buy battalions through a real training queue. Construct a Time Forge to unlock industrial/future units. Muster Hall unlocks analog infantry/cavalry/hunters. Chronal Watchtowers damage approaching enemies.
 - **Population cap:** 120 individual troopers represented through aggregate formations for this browser slice.
 - **Opponent AI:** five enemy commander doctrines. It earns its own supply income from controlled timewells, pays for mixed-era reinforcements, chooses role counters based on the strongest allied battalions, and maneuvers to contest objectives. Reinforcements are no longer free arbitrary waves.
-- **Victory:** first breach two destructible **Chronal Anchors** protecting the opposing Throne, then destroy its citadel before the **36-minute** cap, while keeping your own citadel alive. Untouched anchors greatly absorb HQ damage. Results return to the original era with persistent XP, money, materials, and Chronicle Insight for first victories.
+- **Victory:** complete all four acts before the **36-minute** cap, while keeping your citadel alive: hold at least two wells for 24 uninterrupted seconds; destroy two **Chronal Anchors**; destroy the opposing Throne; then call extraction and defend the temporal corridor for 36 seconds (enemy presence contests progress). Untouched anchors greatly absorb HQ damage. Results return to the original era with persistent XP, money, materials, and Chronicle Insight for first victories.
 - **Fold:** select the destination time and rotate a 24-meter facet, moving live formations and wells into new positions while altering combat affinities.
 
 ### The thirteen trainable battalions
@@ -42,7 +42,18 @@ Every war rift generates recurring, **optional** timed battlefield crises. These
 | **Silence the Chronal Spire** | Destroy the transmitter with rifle fire, explosions or battalion fire | +155 supplies, +2 Insight, enemy wave delay and a supply penalty |
 | **Escort the Timeless** | Keep allied units or your soldier near a moving civilian caravan; hostiles can destroy it | +125 supplies, +2 Insight, restore friendly morale and repair troops |
 
-Ignoring a crisis gives the opposing commander extra supplies. Enemy reinforcements now have a real expense and resource budget, so taking timewells and denying opponent income matters. Battlefield morale drops after losses; shattered battalions withdraw to a safe line, then regroup. Role counters (pikes vs cavalry, skirmishers vs exposed artillery, living prediction vs machine forecasting) matter independently of historical year. Two anchors form the required main siege breach. **Current typical war pacing still falls short of the intended 25–45-minute authored campaigns.**
+Ignoring a crisis gives the opposing commander extra supplies. Enemy reinforcements now have a real expense and resource budget, so taking timewells and denying opponent income matters. Battlefield morale drops after losses; shattered battalions withdraw to a safe line, then regroup. Role counters (pikes vs cavalry, skirmishers vs exposed artillery, living prediction vs machine forecasting) matter independently of historical year. Two anchors form the second mandatory act; an intact enemy Throne cannot be destroyed to skip the prerequisite objectives. Delayed Timefall Pods add era-specific reserves, and Epoch Lance lets the player strike defenses using finite supplies and cooldowns. **Actual human-tested 25–45-minute campaign pacing remains unverified.**
+
+## v0.7 Four-act war operations (implemented)
+
+| Act | Victory gate | Gameplay |
+| --- | --- | --- |
+| I: The Beachhead | Control at least two wells for 24 seconds | Secure territory, protect supply lines, fight for income |
+| II: Break the Lattice | Destroy the western and eastern Chronal Anchors | Flank siege defenses using units, player weapons and support strikes |
+| III: The Throne | Break the enemy citadel | Attack with surviving mixed-era battalions while preserving your own HQ |
+| IV: Last Corridor | Signal extraction near the beacon with your soldier or an allied group, then hold for 36 seconds | Reposition survivors, intercept the rearguard, recover rewards and return to open world |
+
+These are implemented state-machine objectives rather than scripted cinematic scenes. Test runs use fast-forward to reach each stage; they do not establish full-length player-session pacing.
 
 ## Five warfronts — playable core and authored campaign vision
 

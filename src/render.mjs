@@ -41,7 +41,7 @@ function compile(g,source,type){const s=g.createShader(type);g.shaderSource(s,so
 function link(g,vert,frag){const p=g.createProgram(),a=compile(g,vert,g.VERTEX_SHADER),b=compile(g,frag,g.FRAGMENT_SHADER);g.attachShader(p,a);g.attachShader(p,b);g.linkProgram(p);g.deleteShader(a);g.deleteShader(b);if(!g.getProgramParameter(p,g.LINK_STATUS))throw Error(g.getProgramInfoLog(p));return p;}
 export class WorldRenderer {
  constructor(canvas,quality='high'){
-  this.canvas=canvas;this.quality=quality;this.gl=canvas.getContext('webgl2',{antialias:true,alpha:true,powerPreference:'high-performance',preserveDrawingBuffer:true});this.ctx=null;this.software=!this.gl;this.camera={yaw:0,pitch:-.075};this.vp=null;this.ivp=null;this.eye=[0,0,0];this.target=[0,0,0];this.radius=quality==='high'?160:135;this.terrainOrigin=null;this.propsKey='';this.worldProps=[];this.meshes={};this.clock=0;
+  this.canvas=canvas;this.quality=quality;this.gl=canvas.getContext('webgl2',{antialias:true,alpha:true,powerPreference:'high-performance',preserveDrawingBuffer:true});this.ctx=null;this.software=!this.gl;this.camera={yaw:0,pitch:-.075};this.vp=null;this.ivp=null;this.eye=[0,0,0];this.target=[0,0,0];this.radius=quality==='high'?160:135;this.tactical={x:0,z:0,zoom:78};this.focus=null;this.terrainOrigin=null;this.propsKey='';this.worldProps=[];this.meshes={};this.clock=0;
   if(this.software){this.ctx=canvas.getContext('2d',{alpha:false});for(const [name,vertices] of Object.entries({cube:cube(),cone:cone(),cylinder:cone(.5,10),gem:gem(),sphere:sphere(7,5),ring:ring()}))this.meshes[name]={vertices,instancesData:[]};}else this.initGL();
   this.resize=()=>this.size();window.addEventListener('resize',this.resize);this.size();
   canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();this.software=true;this.gl=null;this.ctx=canvas.getContext('2d');});
@@ -57,7 +57,7 @@ export class WorldRenderer {
  }
  add(kind,x,y,z,sx,sy,sz,color=palette.steel,ry=0,rz=0,glow=0){const m=this.meshes[kind];if(m)m.instancesData.push(...model(x,y,z,sx,sy,sz,ry,rz),...color,glow);}
  beam(a,b,r,color,glow=0){const direction=v.sub(b,a),len=Math.hypot(...direction);if(len<.001)return;const y=v.norm(direction),x=v.norm(v.cross(Math.abs(y[1])>.95?[0,0,1]:[0,1,0],y)),z=v.cross(x,y);this.meshes.cylinder.instancesData.push(x[0]*r,x[1]*r,x[2]*r,0,y[0]*len,y[1]*len,y[2]*len,0,z[0]*r,z[1]*r,z[2]*r,0,(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2,1,...color,glow);}
- rebuildTerrain(s){const g=this.gl,unit=this.quality==='high'?3.8:5.5,N=this.quality==='high'?86:56,ox=Math.floor(s.player.x/16)*16,oz=Math.floor(s.player.z/16)*16;const key=`${ox}:${oz}:${s.zone}:${s.seed}:${s.era}:${s.temporal?.foldRevision||0}:${this.quality}`;if(this.terrainOrigin===key)return;this.terrainOrigin=key;const a=[];
+ rebuildTerrain(s){const g=this.gl,unit=this.quality==='high'?3.8:5.5,N=this.quality==='high'?86:56,ox=Math.floor((this.focus||s.player).x/16)*16,oz=Math.floor((this.focus||s.player).z/16)*16;const key=`${ox}:${oz}:${s.zone}:${s.seed}:${s.era}:${s.temporal?.foldRevision||0}:${this.quality}`;if(this.terrainOrigin===key)return;this.terrainOrigin=key;const a=[];
   const normal=(x,z)=>v.norm([terrainHeight(x-1,z,s.seed,s.zone)-terrainHeight(x+1,z,s.seed,s.zone),2,terrainHeight(x,z-1,s.seed,s.zone)-terrainHeight(x,z+1,s.seed,s.zone)]);
   const centerX=ox-N*unit/2,centerZ=oz-N*unit/2;
   for(let iz=0;iz<N;iz++)for(let ix=0;ix<N;ix++){
@@ -66,8 +66,8 @@ export class WorldRenderer {
   }
   if(g){g.bindVertexArray(this.terrainVAO);g.bindBuffer(g.ARRAY_BUFFER,this.terrainVBO);g.bufferData(g.ARRAY_BUFFER,new Float32Array(a),g.DYNAMIC_DRAW);this.terrainCount=a.length/9;}else this.softTerrain={centerX,centerZ,N,unit};
  }
- rebuildProps(s){const cx=Math.floor(s.player.x/32),cz=Math.floor(s.player.z/32),key=`${cx}:${cz}:${s.zone}:${s.seed}:${this.quality}:${s.harvested.length}`;if(key===this.propsKey)return;this.propsKey=key;const radius=this.quality==='high'?5:4,harvested=new Set(s.harvested),props=[];
-  for(let dz=-radius;dz<=radius;dz++)for(let dx=-radius;dx<=radius;dx++)for(const p of propsInChunk(cx+dx,cz+dz,s.seed,s.zone))if(!harvested.has(p.id)&&dist(s.player,p)<this.radius)props.push(p);
+ rebuildProps(s){const view=this.focus||s.player,cx=Math.floor(view.x/32),cz=Math.floor(view.z/32),key=`${cx}:${cz}:${s.zone}:${s.seed}:${this.quality}:${s.harvested.length}`;if(key===this.propsKey)return;this.propsKey=key;const radius=this.quality==='high'?5:4,harvested=new Set(s.harvested),props=[];
+  for(let dz=-radius;dz<=radius;dz++)for(let dx=-radius;dx<=radius;dx++)for(const p of propsInChunk(cx+dx,cz+dz,s.seed,s.zone))if(!harvested.has(p.id)&&dist(view,p)<this.radius)props.push(p);
   this.worldProps=props;
  }
  prop(p,t){const {x,y,z,scale:k,type}=p,phase=hash(Math.floor(x),Math.floor(z),12);if(type==='tree'||type==='deadwood'){
@@ -137,8 +137,10 @@ export class WorldRenderer {
   else if(place.kind==='cache'){this.add('cylinder',x,y+.5,z,8,.7,8,palette.ash);this.add('cube',x,y+2.0,z,7,3.5,6,palette.metal);this.add('gem',x,y+4,z,2,2,2,palette.amber,t*.22,0,.8);this.add('ring',x,y+.4,z,10,.24,10,palette.purple,0,0,.5);}
   else if(place.id==='freehold'){for(let k=0;k<6;k++){const a=k*TAU/6;this.add('cylinder',x+Math.sin(a)*10,y+1.2,z+Math.cos(a)*10,4,2.4,4,palette.wood);this.add('cone',x+Math.sin(a)*10,y+4,z+Math.cos(a)*10,5.5,3.8,5.5,palette.ash);}this.add('gem',x,y+5,z,1,5,1,palette.mint,t*.4,0,.8);}
  }
- drawWarfront(s,ui){const w=s.war,p=s.player,clock=s.time;const base=(b,ally)=>{if(dist(b,p)>this.radius)return;const y=terrainHeight(b.x,b.z,s.seed,s.zone),c=ally?palette.mint:palette.red;this.add('cylinder',b.x,y+.35,b.z,18,1.0,18,palette.ash);for(const [dx,dz]of [[-8,-8],[-8,8],[8,-8],[8,8]]){this.add('cube',b.x+dx,y+5,b.z+dz,3.5,10,3.5,palette.metal);this.add('cone',b.x+dx,y+11,b.z+dz,4.5,3.5,4.5,c);}this.add('cube',b.x,y+3,b.z,13,6,13,palette.ash);this.add('gem',b.x,y+9,b.z,3,8,3,c,clock*.25,0,.65);this.healthMarker(b.x,y+14,b.z,b.hp/b.maxHp,c);};base(w.base,true);base(w.enemyBase,false);
+ drawWarfront(s,ui){const w=s.war,p=this.focus||s.player,clock=s.time;const base=(b,ally)=>{if(dist(b,p)>this.radius)return;const y=terrainHeight(b.x,b.z,s.seed,s.zone),c=ally?palette.mint:palette.red;this.add('cylinder',b.x,y+.35,b.z,18,1.0,18,palette.ash);for(const [dx,dz]of [[-8,-8],[-8,8],[8,-8],[8,8]]){this.add('cube',b.x+dx,y+5,b.z+dz,3.5,10,3.5,palette.metal);this.add('cone',b.x+dx,y+11,b.z+dz,4.5,3.5,4.5,c);}this.add('cube',b.x,y+3,b.z,13,6,13,palette.ash);this.add('gem',b.x,y+9,b.z,3,8,3,c,clock*.25,0,.65);this.healthMarker(b.x,y+14,b.z,b.hp/b.maxHp,c);};base(w.base,true);base(w.enemyBase,false);
  for(const a of w.anchors)if(a.hp>0&&dist(a,p)<this.radius){const y=terrainHeight(a.x,a.z,s.seed,s.zone);this.add('cylinder',a.x,y+5,a.z,6.8,10,6.8,palette.ash);for(const dx of [-5,5])this.add('cube',a.x+dx,y+8,a.z,2.2,10,2.2,palette.metal);this.add('ring',a.x,y+13,a.z,8,.45,8,palette.purple,s.time*.24,Math.PI/2,.75);this.add('gem',a.x,y+14,a.z,3,6,3,palette.purple,s.time*.4,0,.95);this.healthMarker(a.x,y+20,a.z,a.hp/a.maxHp,palette.red);}
+ if(w.act==='extraction'&&dist(w.extraction,p)<this.radius){this.monument(w.extraction.x,w.extraction.z,'extract',s);if(w.extraction.active){const y=terrainHeight(w.extraction.x,w.extraction.z,s.seed,s.zone);this.add('gem',w.extraction.x,y+12,w.extraction.z,2.5,12,2.5,palette.mint,s.time*.7,0,.9);}}
+ for(const drop of w.supportDrops)if(dist(drop,p)<this.radius){const y=terrainHeight(drop.x,drop.z,s.seed,s.zone),c=drop.id==='epoch_lance'?palette.red:palette.mint;this.add('ring',drop.x,y+.5,drop.z,14,.65,14,c,s.time*.6,0,.8);this.add('gem',drop.x,y+5+Math.sin(s.time*5),drop.z,2.2,6,2.2,c,s.time,0,.9);}
  for(const n of w.nodes)if(dist(n,p)<this.radius){const y=terrainHeight(n.x,n.z,s.seed,s.zone),c=n.owner==='ally'?palette.mint:n.owner==='enemy'?palette.red:palette.amber;this.add('ring',n.x,y+.4,n.z,11,.5,11,c,clock*.16,0,.7);this.add('gem',n.x,y+4,n.z,2,7,2,c,clock*.3,0,.85);}
  for(const b of w.buildings)if(dist(b,p)<this.radius){const y=terrainHeight(b.x,b.z,s.seed,s.zone),c=b.kind==='foundry'?palette.amber:palette.steel;if(b.kind==='barracks'){this.add('cube',b.x,y+2.6,b.z,10,5.2,8,palette.wood);this.add('cone',b.x,y+6,b.z,11,4,9,c);this.add('gem',b.x,y+8,b.z,1,2,1,palette.mint);}else if(b.kind==='foundry'){this.add('cube',b.x,y+2.3,b.z,10,4.6,10,palette.ash);for(const i of [-1,1])this.add('cylinder',b.x+i*3,y+5,b.z,1.8,8,1.8,c);this.add('ring',b.x,y+7,b.z,7,.4,7,palette.mint,clock*.35,0,.7);}else{this.add('cylinder',b.x,y+5,b.z,4.5,10,4.5,palette.steel);this.add('cone',b.x,y+11,b.z,6,4,6,palette.amber);}}
  // Optional frontline crises are actual objects in the battlefield, not only objectives in a menu.
@@ -163,9 +165,9 @@ export class WorldRenderer {
  }
  for(const unit of [...w.army,...w.enemyArmy]){if(unit.count<=0||dist(unit,p)>this.radius-8)continue;const spec=BATTALIONS[unit.type],c=unit.side==='ally'?ERAS[spec.era].terrain:palette.red,visible=Math.min(unit.count,this.software?5:Math.min(14,unit.count));for(let i=0;i<visible;i++){const dx=((i%4)-1.5)*1.9,dz=(Math.floor(i/4)-1)*2.0,x=unit.x+dx,z=unit.z+dz,y=terrainHeight(x,z,s.seed,s.zone),angle=unit.side==='ally'?Math.PI:0;this.humanoid(x,y,z,c,spec.era==='steam'?1.12:.90,angle,unit.side==='ally'?'friendly':'enemy',clock);if(unit.type==='riders'||unit.type==='cannons'){this.add('cube',x,y+.48,z,2.1,.8,2.2,palette.wood);}}if(ui.commander){const y=terrainHeight(unit.x,unit.z,s.seed,s.zone);this.add('ring',unit.x,y+.12,unit.z,6,.2,6,unit.side==='ally'?palette.mint:palette.red,0,0,.6);}}
  }
- drawScene(s,ui={}){this.clock=s.time;this.activeSeed=s.seed;this.activeZone=s.zone;this.rebuildTerrain(s);this.rebuildProps(s);for(const m of Object.values(this.meshes))m.instancesData=[];
-  const p=s.player,y=terrainHeight(p.x,p.z,s.seed,s.zone),yaw=p.yaw,pitch=p.pitch,f=[Math.sin(yaw),0,-Math.cos(yaw)],right=[Math.cos(yaw),0,Math.sin(yaw)];
-  if(ui.commander){this.eye=[p.x+30,p.y+75,p.z+37];this.target=[p.x,p.y,p.z-9];}else{this.eye=[p.x-f[0]*6+right[0]*1.55,p.y+3.2+Math.max(0,-pitch)*2.4,p.z-f[2]*6+right[2]*1.55];this.target=[p.x+f[0]*16,p.y+2.1+Math.sin(pitch)*19,p.z+f[2]*16];}
+ drawScene(s,ui={}){this.clock=s.time;this.activeSeed=s.seed;this.activeZone=s.zone;this.focus=ui.commander?this.tactical:s.player;this.rebuildTerrain(s);this.rebuildProps(s);for(const m of Object.values(this.meshes))m.instancesData=[];
+  const pawn=s.player,p=this.focus,y=terrainHeight(p.x,p.z,s.seed,s.zone),yaw=pawn.yaw,pitch=pawn.pitch,f=[Math.sin(yaw),0,-Math.cos(yaw)],right=[Math.cos(yaw),0,Math.sin(yaw)];
+  if(ui.commander){const zoom=this.tactical.zoom,scale=zoom/78;this.eye=[p.x+30*scale,y+zoom,p.z+37*scale];this.target=[p.x,y,p.z-9*scale];}else{this.eye=[p.x-f[0]*6+right[0]*1.55,p.y+3.2+Math.max(0,-pitch)*2.4,p.z-f[2]*6+right[2]*1.55];this.target=[p.x+f[0]*16,p.y+2.1+Math.sin(pitch)*19,p.z+f[2]*16];}
   this.vp=mul(perspective(ui.commander?.88:.94,this.w/Math.max(1,this.h),.13,340),lookAt(this.eye,this.target));this.ivp=inverse(this.vp);
   const dark=palette.ash;
   // A living world: deterministic vegetation and geology, bounded by the camera's streaming radius.
@@ -199,11 +201,11 @@ export class WorldRenderer {
   for(const b of s.buildings)if(b.hp>0&&b.zone===s.zone&&(s.zone!=='frontier'||(b.era||'medieval')===s.era)&&dist(b,p)<this.radius)this.building(b);
   for(const u of s.squad)if(u.hp>0&&dist(u,p)<this.radius){const baseY=terrainHeight(u.x,u.z,s.seed,s.zone);this.humanoid(u.x,baseY,u.z,u.role==='MEDIC'?palette.white:palette.mint,u.role==='HEAVY'?1.13:.94,yaw,'friendly',s.time);if(ui.commander||u.hp/u.maxHp<.5)this.healthMarker(u.x,baseY+3,u.z,u.hp/u.maxHp,palette.mint);if(ui.commander){this.add('ring',u.x,baseY+.15,u.z,2.6,.12,2.6,palette.mint,0,0,.4);if(u.order!=='follow')this.beam([u.x,baseY+.4,u.z],[u.tx,terrainHeight(u.tx,u.tz,s.seed,s.zone)+.2,u.tz],.06,palette.mint,.4);}}
   for(const e of s.enemies)if(e.hp>0&&dist(e,p)<this.radius-4)this.enemy(e,s);for(const d of s.drones||[]){const dy=terrainHeight(d.x,d.z,s.seed,s.zone);this.add('sphere',d.x,dy+3+Math.sin(s.time*5+d.id)*.4,d.z,1.25,1.25,1.25,palette.mint,0,0,.9);this.add('ring',d.x,dy+3,d.z,2.4,.18,2.4,palette.purple,s.time,Math.PI/2,.65);}
-  const py=Math.max(p.y,y),bob=(Math.abs(p.sprint)||Math.abs(ui.move||0)>0)?Math.sin(s.time*10)*.07:0;
-  if(!ui.commander){this.humanoid(p.x,py+bob,p.z,palette.steel,p.crouch?.86:1.12,yaw,'player',s.time);
-    this.add('cube',p.x,py+1.3+bob,p.z+.38,1.1,1.65,.26,palette.mint,yaw,0,.45);
-    this.add('gem',p.x,py+2.25+bob,p.z-.37,.33,.24,.2,palette.mint,yaw,0,.8);
-  }else{this.add('ring',p.x,y+.21,p.z,3.3,.17,3.3,palette.amber,s.time*.1,0,.5);this.humanoid(p.x,y,p.z,palette.steel,1.12,yaw,'player',s.time);}
+  const pawnY=terrainHeight(pawn.x,pawn.z,s.seed,s.zone),py=Math.max(pawn.y,pawnY),bob=(Math.abs(p.sprint)||Math.abs(ui.move||0)>0)?Math.sin(s.time*10)*.07:0;
+  if(!ui.commander){this.humanoid(pawn.x,py+bob,pawn.z,palette.steel,pawn.crouch?.86:1.12,yaw,'player',s.time);
+    this.add('cube',pawn.x,py+1.3+bob,pawn.z+.38,1.1,1.65,.26,palette.mint,yaw,0,.45);
+    this.add('gem',pawn.x,py+2.25+bob,pawn.z-.37,.33,.24,.2,palette.mint,yaw,0,.8);
+  }else{this.add('ring',pawn.x,pawnY+.21,pawn.z,3.3,.17,3.3,palette.amber,s.time*.1,0,.5);this.humanoid(pawn.x,pawnY,pawn.z,palette.steel,1.12,yaw,'player',s.time);}
   for(const shot of s.projectiles)this.add('sphere',shot.x,shot.y,shot.z,.5,.5,.5,palette.amber,0,0,1);
   for(const loot of s.pickups)if(dist(loot,p)<this.radius){const ly=terrainHeight(loot.x,loot.z,s.seed,s.zone);this.add('gem',loot.x,ly+1+Math.sin(s.time*4+loot.id)*.25,loot.z,.85,1.25,.85,loot.kind==='relic'?palette.purple:palette.amber,s.time*1.7,0,.75);this.add('ring',loot.x,ly+.2,loot.z,1.9,.2,1.9,palette.amber,0,0,.5);}
   for(const ef of s.effects){const age=s.time-ef.at,life=1-clamp(age/1.4,0,1),h=terrainHeight(ef.x,ef.z,s.seed,s.zone);if(ef.type==='tracer'||ef.type==='allytracer'||ef.type==='enemytracer'){

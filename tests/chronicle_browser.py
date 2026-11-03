@@ -65,7 +65,9 @@ with sync_playwright() as pw:
         page.keyboard.press('Tab');page.wait_for_timeout(150)
         checks['return_to_shooter']=not page.locator('#commander-panel').is_visible()
         # Win condition and returning era must be wired correctly. 
-        page.evaluate('const s=window.__riftfront.state;s.war.enemyBase.hp=0')
+        page.evaluate('const s=window.__riftfront.state;s.war.act="throne";s.war.anchors.forEach(a=>a.hp=0);s.war.enemyBase.hp=0')
+        page.wait_for_timeout(120)
+        page.evaluate('''()=>{const s=window.__riftfront.state;s.war.enemyArmy=[];s.player.x=s.war.extraction.x;s.player.z=s.war.extraction.z;s.war.extraction.active=true;s.war.extraction.progress=s.war.extraction.target-.15;}''')
         page.wait_for_timeout(260)
         checks['victory_returns_to_1889']=page.evaluate("window.__riftfront.state.zone==='frontier' && window.__riftfront.state.era==='steam'")
         checks['campaign_reward']=page.evaluate("window.__riftfront.state.temporal.wonCampaigns.includes('iron_parliament')")

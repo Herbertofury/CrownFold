@@ -2,7 +2,7 @@
 
 ## One continuous project
 
-The project is simply **CrownFold**, with six successive development milestones. The old names represent prototypes, not new product names:
+The project is simply **CrownFold**, with seven successive development milestones. The old names represent prototypes, not new product names:
 
 | Milestone | Added | Preservation |
 | --- | --- | --- |
@@ -11,7 +11,8 @@ The project is simply **CrownFold**, with six successive development milestones.
 | **v0.3 — Living Frontier RPG** | 18 perks, six spells, loot, 13 quests, three dungeons, 7 original NPCs, safecracking, crime, companions, bounties, crafting | Integrated into main game |
 | **v0.4 — Great Entanglement** | Five eras, Advanced Rifts, five RTS campaigns, battalion economy and production, three timewells, era affinity, 9 new NPCs, Chronicle upgrades and timeline persistence | Integrated |
 | **v0.5 — Lost Futures** | Five freely chosen commander heritages, ten equally viable historical/future sciences, three equipped slots, four cross-era fusion doctrines, thirteen battalions, four stances and four field powers | Integrated |
-| **v0.6 — The Living War** | Three timed repeatable battlefield crises, enemy commander doctrines and supply budgets, military role counters, troop morale/regroup, two destructible siege anchors and command HUD feedback | This release |
+| **v0.6 — The Living War** | Three timed repeatable battlefield crises, enemy commander doctrines and supply budgets, military role counters, troop morale/regroup, two destructible siege anchors and command HUD feedback | Integrated |
+| **v0.7 — The Four Acts** | Mandatory supply beachhead, two-anchor siege, throne assault, contested evacuation, supply-funded delayed battle call-ins, separate RTS camera pan/zoom, box selection, control groups and compact command overlay | This release |
 
 ## Actual architecture (running code)
 
@@ -19,7 +20,7 @@ The vertical slice uses **dependency-free JavaScript modules**, deterministic fi
 
 Run `npm test`, `npm run check`, and `npm run build` on Node.js 22+. `tests/chronicle_browser.py` exercises actual travel into a new era, dialogue, Fold, war production, win and return in Chromium/Playwright. `tests/rpg_browser.py` exercises previous v0.3 RPG interaction flows.
 
-### Verified scope at v0.6
+### Verified scope up through v0.6
 
 144 automated simulation tests passed. The 21-check Chronicle browser run, 23-check Lost Futures browser run, and 11-check War Director browser run passed; the previous 29-check RPG integration remains separately maintained. The new tests compress time or teleport the character to reach integration states, so they do not prove real 30-minute human session quality. Screenshots are recorded as evidence. A complete 36-minute human playthrough, performance on all GPUs, online multiplayer and balance at extreme army sizes have not been validated.
 

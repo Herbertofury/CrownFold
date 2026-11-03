@@ -1,3 +1,17 @@
+# CrownFold v0.7 — QA update (2026-11-03)
+
+**Release stage: experimental, dependency-free browser vertical slice.** No claims of AAA parity, measured 30-minute human playthroughs or production GPU performance.
+
+- `npm run check`: all JS modules and scripts pass syntax check.
+- `npm test`: 165/165 deterministic automated tests, including 21 new tests for multi-act warfare/support and tactical groups.
+- `python3 tests/war_operations_browser.py`: 23/23 browser checks; multi-act war launch, strategic controls, reinforcements, extraction and RPG return.
+- `python3 tests/war_tactical_browser.py`: 12/12 browser checks; actual camera movement, soldier remains stationary, map zoom, Shift multi-selection, save/recall groups, right-click orders, drag-box selection and compact console.
+- Existing long-regression suites noted below remain applicable; screenshots are captured in `test-results/` locally (not required to download to play).
+
+**Known limits:** browser tests include state manipulation to reach long missions; hardware GPU testing and full unassisted 25–45-minute sessions are outstanding. Native 3D engine, high-fidelity assets, advanced animation, co-op, thousands of AI agents, complex NPC routines and huge densely authored eras remain roadmap goals.
+
+---
+
 # CrownFold v0.6 — Lost Futures + The Living War verification (2026-11-03)
 
 **Build:** desktop browser single-player **pre-alpha**. Current tests prove simulation safety and UI flows, not AAA readiness.

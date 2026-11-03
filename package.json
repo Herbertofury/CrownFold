@@ -1,10 +1,10 @@
 {
   "name": "crownfold",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "private": true,
   "license": "UNLICENSED",
-  "description": "CrownFold v0.6: five-epoch open-world RPG, third-person war rifts, doctrine-weaving, RTS siege operations and dynamic crises.",
+  "description": "CrownFold v0.7: multi-act chronal operations, 3D RTS panning and box-select, era-neutral RPG and cross-era campaign warfare.",
   "engines": {
     "node": ">=22"
   },

@@ -4,7 +4,7 @@
 
 CrownFold is an original open-world third-person survival RPG with live RTS command, cross-era armies, and time-space terrain manipulation. You begin in **1278, The Crownless March**, and can cross **Advanced Rifts** into separate persistent procedural worlds in 12,400 BCE, 1889, 2086, and 8420. **War Rifts** open real-time army campaigns with a 36-minute limit and commanders who can keep fighting in third person. The original rotating 3D board game is preserved as a separate playable legacy mode.
 
-> **Current release: v0.6 experimental browser vertical slice. Not a finished AAA production or a Skyrim-scale handcrafted world.** The longer-term game vision is deliberately larger than the implemented prototype.
+> **Current release: v0.7 experimental browser vertical slice. Not a finished AAA production or a Skyrim-scale handcrafted world.** The longer-term game vision is deliberately larger than the implemented prototype.
 
 ## Play without installation
 
@@ -20,8 +20,11 @@ CrownFold is an original open-world third-person survival RPG with live RTS comm
 | WASD, mouse, left mouse | Move, aim, shoot in third person |
 | Shift / Ctrl / X | Sprint / sneak / dodge |
 | E | Interact with NPCs, Ancient Relics, Advanced Rifts, War Rifts, dungeons, and loot |
-| TAB | Toggle live bird's-eye RTS command; select Move / Assault / Defend / Follow, click ground to issue orders |
-| War command panel | Train 13 cross-era battalions, pick formation stances, deploy researched field powers and build four structure types |
+| TAB | Enter live RTS command without pausing the battlefield; the player remains in place while the tactical camera pans |
+| RTS camera: WASD / mouse wheel / drag | Pan and zoom the map independently; box-select allied battalions and right-click terrain to move them |
+| Shift-click / Ctrl+1–5 / Alt+1–5 | Add formations, save five control groups, recall groups |
+| ` (backtick) | Toggle compact RTS map view and expanded army-production console |
+| War command panel | Train 13 cross-era battalions, select formation stances, summon Timefall reserves or strike with Epoch Lance, and build field structures |
 | T then Q | Pick destination era, then Chronofold a 24-meter tile (rotate contents and imbue its era) |
 | Z / F / G / V | Echo rewind / orbital strike / grenade / resupply |
 | 4–9 | Six active arcane powers |
@@ -35,10 +38,13 @@ In 2086, the public demonstration at the Meridian Exchange had a strange side ef
 
 A king may rent a railgun. A mammoth hunter may destroy an oracle army using unnetworked ambushes. A mechanic from 1889 can disassemble a futuristic droid, then sell its parts to a medieval monastery. The universal resource is not time: it is **the right to make a century your territory**.
 
-## Playable systems in v0.6
+## Playable systems in v0.7
 
 - Five distinct procedural overworld states, each with portals, landmarks, visual style, timeline log, NPC witnesses, a local RTS campaign, and persistent discovered sites.
 - Live third-person shooter with six firearms, six arcane abilities, stealth, survival meters, structures, inventory, crafting, companion recruitment, dialogue, quests, bounties, rare gear, and three earlier dungeon spaces.
+- **Four mandatory war acts:** establish a 24-second supplied foothold across two timewells; destroy two Chronal Anchors; breach the enemy Throne; call and defend extraction for 36 seconds. Each act has an actual state transition and HUD target.
+- **Two delayed field supports:** spend finite War Supplies for a Timefall Pod reserve company or precision Epoch Lance barrage.
+- **True RTS tactical view:** separate camera pan and zoom, drag-box selection, multi-group orders, five saved control groups and a compact console so the battlefield stays clickable.
 - War rifts with allied and opposing citadels, three contested timewells, a growing supply economy, 13 battalion types, four selectable stances, production queues, four field buildings and an adaptive opponent commander with finite War Supplies.
 - Era-neutral tactical role counters, three permanent Chronicle upgrades, five independent commander heritages, ten equippable lost technologies and four cross-era fusion combinations: ancestral cunning, industrial ingenuity and tomorrowcraft.
 - **Chronofold**: choose an era and rotate a 24m battlefield facet along with nearby units/structures. The facet gains a colored era material marker and combat affinity, letting you create localized era advantages.
