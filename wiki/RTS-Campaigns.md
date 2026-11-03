@@ -10,11 +10,11 @@ You physically fight in third person with weapons and powers. Press `TAB` at any
 - **Timewells:** three contested control points. Capture a well by keeping forces (or the player) nearby uncontested for 12 seconds; each held well increases supply income by **2.3/s**.
 - **Production:** War Supplies buy battalions through a real training queue. Construct a Time Forge to unlock industrial/future units. Muster Hall unlocks analog infantry/cavalry/hunters. Chronal Watchtowers damage approaching enemies.
 - **Population cap:** 120 individual troopers represented through aggregate formations for this browser slice.
-- **Opponent AI:** builds pressure via timed reinforcement waves, marches toward allied control zones and HQ, and fights allied units. Units target based on range and their assigned orders.
-- **Victory:** destroy the opposing Chronal Throne before the **36-minute** cap, while keeping your own citadel alive. Results return to the original era with persistent XP, money, materials, and Chronicle Insight for first victories.
+- **Opponent AI:** five enemy commander doctrines. It earns its own supply income from controlled timewells, pays for mixed-era reinforcements, chooses role counters based on the strongest allied battalions, and maneuvers to contest objectives. Reinforcements are no longer free arbitrary waves.
+- **Victory:** first breach two destructible **Chronal Anchors** protecting the opposing Throne, then destroy its citadel before the **36-minute** cap, while keeping your own citadel alive. Untouched anchors greatly absorb HQ damage. Results return to the original era with persistent XP, money, materials, and Chronicle Insight for first victories.
 - **Fold:** select the destination time and rotate a 24-meter facet, moving live formations and wells into new positions while altering combat affinities.
 
-### The eight trainable battalions
+### The thirteen trainable battalions
 
 | Battalion | Era | Cost | Role |
 | --- | --- | ---: | --- |
@@ -26,6 +26,23 @@ You physically fight in third person with weapons and powers. Press `TAB` at any
 | Coal Siege Train | Industrial | 140 | Slow ranged siege, 3 cannons |
 | Signal Rangers | Network Age | 89 | Mid-future mobile ranged troops, 9 soldiers |
 | Oracle Synths | Far Future | 120 | Predictive elite ranged troops, 6 synths |
+| Chordwright Templars | Medieval | 110 | Lost cathedral harmonic shields and projectors |
+| Murmuration Seers | Primeval | 106 | Living probability computing and swarm feints |
+| Escapement Oracles | Industrial | 109 | Analog battlefield prediction with impossible gears |
+| Null Couriers | Network Age | 72 | Fast signal-free scouts and supply raiders |
+| Gravity Shepherds | Far Future | 132 | Mobile gravitic bulwarks for holding objectives |
+
+## The Living War — implemented dynamic crisis director (v0.6)
+
+Every war rift generates recurring, **optional** timed battlefield crises. These show up as physical objects in the 3D scene, a gold minimap marker, a world objective marker and a commander panel with progress and deadline. They can be played as a third-person shooter, an RTS commander, or both.
+
+| Crisis | What you actually do | Consequences |
+| --- | --- | --- |
+| **Recover the Living Archive** | Secure a chronal cache with your soldier or friendly battalions; enemy troops contest the site | +125 War Supplies and +4 Chronicle Insight |
+| **Silence the Chronal Spire** | Destroy the transmitter with rifle fire, explosions or battalion fire | +155 supplies, +2 Insight, enemy wave delay and a supply penalty |
+| **Escort the Timeless** | Keep allied units or your soldier near a moving civilian caravan; hostiles can destroy it | +125 supplies, +2 Insight, restore friendly morale and repair troops |
+
+Ignoring a crisis gives the opposing commander extra supplies. Enemy reinforcements now have a real expense and resource budget, so taking timewells and denying opponent income matters. Battlefield morale drops after losses; shattered battalions withdraw to a safe line, then regroup. Role counters (pikes vs cavalry, skirmishers vs exposed artillery, living prediction vs machine forecasting) matter independently of historical year. Two anchors form the required main siege breach. **Current typical war pacing still falls short of the intended 25–45-minute authored campaigns.**
 
 ## Five warfronts — playable core and authored campaign vision
 
@@ -57,4 +74,4 @@ The three prior classic shooter operations remain in `CONTRACTS`: **Glassfall In
 
 ## Production design — not implemented
 
-The full CrownFold war mode should include selectable commanders, economy specialization, medieval fortifications, wall destruction, siege ladders, towers, barracks, factories, supply caravans, fortresses, cavalry, aircraft, vehicles, officer units, rout/morale, large-scale pathfinding, persistent campaign maps, base-building placement, strategic diplomacy, co-op and adversarial modes, theater-wide goals and 30–45-minute handcrafted mission arcs. Current prototype supports the core resource→army→capture→battle→victory loop at aggregate scale.
+The full CrownFold war mode should include destructible fortifications, siege ladders and walls, vehicles and aircraft, officer units, thousands of individually simulated visible soldiers, spatially robust pathfinding, authored multi-act campaigns, persistent strategic fronts, construction placement previews, co-op and PvP, and fully voiced context-specific mission arcs. The prototype now implements role counters, basic morale/rout, tactical crises, supply caravans as escort objectives and adaptive reinforcement economies at aggregate scale, **not** those production features.

@@ -21,8 +21,12 @@ Welcome to **CrownFold**, an original third-person open-world survival RPG where
 
 ## Current prototype versus full vision
 
-**Implemented in browser v0.4:** five seeded overworld environments, Advanced Rifts, named era witnesses, Chronofold, mixed-era battalions, real-time war economy, eight unit types, three production structures, captureable timewells, enemy reinforcements, five war maps with distinct opposing eras, 36-minute timers, third-person shooter controls, 18 RPG perks, six arcane arts, original story quests, three smaller existing dungeons and a separate original 3D board game.
+**Implemented in browser v0.6:** five seeded overworld environments, Advanced Rifts, named era witnesses, Chronofold, mixed-era battalions, a resource-backed RTS economy, thirteen unit types, four structure types, captureable timewells, five differentiated opponent doctrines, four formations, battlefield powers, three recurring optional crises, two destructible siege anchors, five war maps with distinct enemy forces, 36-minute timers, third-person shooter controls, eighteen RPG perks, ten researchable lost sciences, six arcane arts, original story quests, three smaller dungeons and the separate original 3D board game. All five eras offer viable technologies and independently chosen commander heritage; none is a universal tech tier.
 
-**Production vision:** vast and dense bespoke living lands with layered societies and schedules, full-scale siege warfare, vehicles, historic/futurist architecture and equipment, faction diplomacy, branching quests, emergent economics, mutable terrain streaming, authored 30–40 minute campaigns, larger interlocking long-term quest lines, multiplayer and AAA visuals. These are **not claimed as shipped**.
+**Production vision, NOT implemented:** vast and dense bespoke living lands with layered societies and schedules, full-scale siege warfare, vehicles, historic/futurist architecture and equipment, faction diplomacy, branching quests, emergent economics, mutable terrain streaming, authored 30–40 minute campaigns, larger interlocking long-term quest lines, multiplayer and AAA visuals. These are **not claimed as shipped**.
 
 The name is **CrownFold**, without subtitles. The earlier prototype names *Riftfront* and *The Living Frontier* describe development phases, not separate game brands.
+
+## Current quality bar
+
+The playable v0.6 version is a **pre-alpha vertical slice**, not a AAA production. Automated checks cover core mechanics, but its typical simulated RTS rounds finish or fail much earlier than the 36-minute cap. Priority milestones: meaningful 25–45-minute mission arcs, player-validated balance, reliable squad nav, a proper visual/animation pipeline, networking and multiplayer, long-session performance budgets and dense authored cities, dungeons and quests. The [development page](Development-And-Tech.md) tracks these gates without calling planned content shipped.

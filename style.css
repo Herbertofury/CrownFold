@@ -33,3 +33,30 @@ body.commanding .crosshair{display:none}body.commanding .right-panel{opacity:.85
 /* THE GREAT ENTANGLEMENT · live chronal war commander controls */
 .fold-target{cursor:pointer;color:#e7d3a0;min-height:58px;min-width:82px}.fold-target:hover{background:#6d5540a1;border-color:#d5ad74}.fold-target span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:82px}
 .war-controls{margin:18px 0 0;padding:12px 0;border-top:1px solid #accbb24d;max-height:46vh;overflow-y:auto;scrollbar-color:#6b9790 transparent}.war-controls.hidden{display:none!important}.war-controls p{font-size:11px;color:#d5d0ac;line-height:1.5}.war-unit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:10px 0}.war-build{font-size:9px;letter-spacing:.25px;font-weight:750;padding:9px 7px;border:1px solid #547d70;background:#1d3235ed;color:#e8f1e7;text-align:left;cursor:pointer;line-height:1.5;white-space:normal;min-height:47px}.war-build:hover:not(:disabled){border-color:#e4c982;background:#3a5645}.war-build:disabled{opacity:.35;cursor:not-allowed}.war-log{border-left:2px solid #f6d39b;padding-left:8px;color:#dbc5a6!important;font-size:10px!important;letter-spacing:.35px}@media(max-width:1020px){.war-controls{max-height:30vh}.war-unit-grid{grid-template-columns:1fr}.fold-target{min-width:58px}}
+
+/* LOST FUTURES — a dense, readable army control interface. The timeline never defines a unit tier. */
+.war-heritage{font-size:10px;line-height:1.55;letter-spacing:.65px;color:#f4d19a;padding:9px 11px;background:#2c3f3ae0;border-left:3px solid #e5b97e;margin:10px 0}
+.war-subheading{font-size:9px;letter-spacing:1.35px;font-weight:900;color:#82d7c4;margin:12px 0 6px}
+.war-roster{display:flex;flex-direction:column;gap:3px;max-height:150px;overflow-y:auto;border:1px solid #487c76;padding:5px;background:#0b2026aa}
+.war-roster button{font-size:9px;font-weight:750;line-height:1.35;border:1px solid #2f4c4d;background:#1b3538;color:#c6e9dd;text-align:left;padding:7px 8px;letter-spacing:.2px}
+.war-roster button:hover,.war-roster button.active{border-color:#9de3b3;background:#31554e;color:#fff}
+.war-roster button:first-child{font-weight:900;color:#f3d49f}
+.war-stance-grid,.war-power-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.war-stance-grid button,.war-power-grid button{font-size:9px;font-weight:850;line-height:1.4;padding:9px 7px;text-align:left;white-space:normal;border:1px solid #527872;background:#1e3439;color:#dcf1e8;min-height:44px}
+.war-stance-grid button.active{border-color:#f8d59c;background:#554a32;color:#ffe4b1}
+.war-power-grid button:not(:disabled):hover{background:#315a55;border-color:#95e6bc}
+.war-power-grid button:disabled{opacity:.39}
+.war-power-grid small{display:block;font-size:8px;color:#aad4c2;margin-top:2px}
+.weave-ribbon{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0 22px}
+.weave-ribbon span{padding:9px 11px;border:1px solid #5b9280;background:#203c3c;font-size:11px;color:#d5f5e2;font-weight:800}
+.weave-ribbon span.active{border-color:#ffd18d;color:#ffe1b0;background:#403a2d}
+.lost-tech-card{border-color:#4f8179;background:linear-gradient(145deg,#17353b,#1e2030)}
+.lost-tech-card.equipped{border-color:#eac07e;box-shadow:inset 0 0 0 1px #d5b57a66}
+.lost-tech-card .rpg-meta{color:#e9c28a}
+.lost-tech-card .rpg-tag{align-self:flex-start}
+@media(max-width:1020px){.war-roster{max-height:95px}.war-stance-grid,.war-power-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* v0.6 contested crisis inside live RTS campaigns */
+.war-expedition{margin:10px 0;padding:11px 12px;border:1px solid #b3a27a55;background:#15252ab8;color:#ccb98e;font-size:11px;line-height:1.5;letter-spacing:.06em}
+.war-expedition.active{border-color:#f5c578;background:linear-gradient(135deg,#463925,#173039);box-shadow:inset 3px 0 #e8b967}
+.war-expedition strong{display:block;color:#ffdc9e;font-size:12px;margin-bottom:5px}.war-expedition span{display:block;color:#d4d4c9}.war-expedition small{display:block;margin-top:6px;color:#98f3d3;font-size:10px}

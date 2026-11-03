@@ -1,43 +1,58 @@
-# Chronofold — Your Battlefield Is a Time Machine
+# Chronofold & Lost Futures — No Century Is the Best
 
-CrownFold isn't just about jumping between worlds. The player or commander can impose one era on a **small piece of another** and rotate that slice of space. The ancient art is called **Chronofold**.
+**Design law:** choosing a historical era is choosing a *culture, aesthetic and philosophy*, not accepting inferior equipment. CrownFold's central fantasy is not “modern guns beat medieval knights.” It is that every civilization reached branches of science other civilizations forgot, and any commander can research, develop and hybridize them.
 
-## How the playable prototype works
+## Chronofold: move an area of time *and* space
 
-1. **Choose an era** with `T`. The HUD shows the target time stratum.
-2. **Cast Chronofold** with `Q`. Costs 35 Flux with cooldown; selected facet is rounded to the nearest 24-meter battlefield tile.
-3. Everything **eligible inside the tile** is rotated around its center: nearby enemy units, squadmates, player structures, war battalions, timewells and scenario objectives. The player doesn't teleport with it.
-4. The tile is **stamped** with the target era: color/material marker, 90-degree turn state and damage-affinity modifier. The stamp is saved persistently; multiple facets can exist in different eras and zones.
-5. Fighters matching the imposed era benefit, while troops whose historic doctrine is disfavored may suffer. The same Fold can create a flank, disrupt a defensive firing line, cut a supply approach or move an objective.
-6. **Echo** remains separate: rewind your position and health to a remembered moment. Inventory, consumables, enemy deaths and campaign captures aren't undone.
+1. Choose a target era with **`T`**. The HUD displays the active target stratum.
+2. Press **`Q`** to Fold the nearby 24-meter facet for 35 Flux (cooldown applies).
+3. The facet rotates 90 degrees, physically relocating nearby living enemies, squadmates, war battalions, structures, timewells, siege anchors and mission objectives inside its boundaries. The player stays in place.
+4. A visible era stamp persists on that facet. Units whose *own doctrine* matches its conditions get a situational local bonus; the defenders can counterfold, surround or deny logistics. No era gets an intrinsic global attack modifier against another era.
+5. **Echo** (`Z`) returns your current body and health to a remembered moment without undoing inventory expenditures, deaths, mission captures or the rest of the world. It remains distinct from Chronofold.
 
-This is the current prototype implementation. It rotates entities, captures and applies an era affinity, **not actual sculpted mesh terrain or destructible physics geometry**. Fully morphing castles into future towers is part of the production architecture.
+**Current limitation:** the browser engine rotates the objects and renders a colored time-facet. Fully deformable collision geometry, swapped architecture/biomes, re-baked navigation and destructible materials are *not yet implemented*.
 
-## The Counter Doctrine: technology isn't a linear RPG ladder
+## The Doctrine Weave (implemented in v0.5)
 
-Every era is viable. Technology provides raw strength but also new dependencies. Every dependency is a weapon waiting for the wrong century.
+Press **`Y`** outside operations to choose one of five freely switchable heritages. They are different *command styles*, not chronological tiers:
 
-| Unit/Doctrine | Tactical power | Vulnerability |
+| Heritage | Identity | Tactical trait |
 | --- | --- | --- |
-| Ancient Rootbound hunters | Ambush and anti-prediction | Poor conventional armor and low direct firepower |
-| Medieval archers and pikemen | Independent, reliable, cheap; deliberate positioning | Weak against industrial armor without flanks or terrain |
-| 1889 clockwork | Mechanically self-contained, effective siege | Heavy supplies, slow movement and range constraints |
-| 2086 signal rangers | Recon, accurate weapons and rapid coordination | Antennae, cables, command relays and supply cutoffs |
-| 8420 oracle synths | Prediction and extreme firepower | Overfitting to known strategies; vulnerability to unmodelled primal behavior |
+| Oathbound Architect | Cathedral and resonance engineering | Better defensive formations |
+| Unwritten Pathfinder | Biological maps, first-language tactics | Faster neutral-timewell capture |
+| Escapement Magister | Analog computers and impossible gears | Faster military production |
+| Signal Corsair | Courier-mesh and distributed organization | Faster mobile deployments |
+| Gravity Gardener | Living gravity and local physics gardening | Faster field-power recovery |
 
-The numerical prototype uses asymmetric bonus/penalty pairs and battlefield facet affinity. This is a balance starting point, not a proof that a specific ancient unit always beats a future one. Competitive balance should be driven by 10,000-match seeded simulations and human test data in later stages.
+Research discoveries with **Chronicle Insight** earned by surveying different eras and winning operations. A surveyed site reduces that era's science costs. Research is permanent; equip any three learned technologies for a mission. Ten technology cards are implemented: Oath Geometry, the Sunless Sun, Murmuration Engine, Bone Lattice, Escapement Oracle, Ether Reactor, Ghost Protocol, Prism Mesh, Gravity Garden and Phase Archive. They modify *real combat*, logistics or mobility, and **all thirteen units can be recruited with any commander heritage**.
 
-## Chronicle doctrine upgrades (roguelite progression)
+### Cross-era discoveries that unlock a third idea
 
-Survey sites grant **Insight**. Spend it in the Chronicle screen on permanent doctrines: **Ancestral Genius** (+7% per rank to ancient unit damage), **Gilded Ingenuity** (+8% to 1889 units), and **Tomorrowcraft** (+7% to the two high-tech eras). Each has three ranks and escalating Insight cost. War victories grant bonus Insight. They persist across campaigns, turning repeated expeditions into strategic builds.
+| Fusion | Combined research | Effect |
+| --- | --- | --- |
+| Cathedral of Light | Oath Geometry + Prism Mesh | Better protection for ranged troops in a Bulwark stance |
+| Wild Oracle | Murmuration Engine + Escapement Oracle | Extra skirmish ranged damage |
+| Sun Garden | The Sunless Sun + Gravity Garden | Battlefield siege-repair synergy |
+| Phantom Rail | Ghost Protocol + Ether Reactor | Faster skirmishing plus stronger economy |
 
-### Production ideas, unshipped
+### Battlefield powers (implemented)
 
-- Full geometry patch blending between time palettes, with heightfield deformation and navmesh updates.
-- Supply-dependent fields that prevent powered future units from firing while letting analog troops continue.
-- Temporary Fold fractures that connect distant tiles through unusual path geometry, maintaining navigable world rules.
-- Commander specialties: Cartographer, Historian, Clocksmith, Oracle Defector, Siege Witch, Farmer General.
-- Environmental counters: mud against walkers, water against rails, fog against optics, lightning against radios, fire against prehistoric jungles.
-- Costly counterfolds and temporal gambits that opponents can telegraph and interrupt rather than unblockable surprises.
+**Oathwall** fortifies nearby squads; **Flux Rush** trades temporary vulnerability for speed and firepower; **Hushfield** suppresses enemy targeting using biological computation; **Gravity Root** accelerates timewell capture and bolsters defenders. Abilities use War Supplies, have cooldowns and must be unlocked *and equipped*; they can fail safely without consuming resources when no valid target is in range.
 
-The design law: **The commander who understands a century should be able to outplay the commander who simply owns it.**
+## What actually decides a battle (v0.6)
+
+- **Unit role**: pikes beat cavalry in the right position; skirmishers can crack exposed guns; hunters can outwit prediction; specialists can counter other specialists. The counters are per-unit in `src/war.mjs`, **not** a hard-coded era hierarchy.
+- **Local Fold**: an army with matching doctrine can exploit a stamped patch, regardless of its commander's birth year. Enemies can contest the terrain.
+- **Logistics**: timewells generate income for either side. Enemy commanders now spend finite supplies on reinforcements and react to your most threatening unit types.
+- **Morale**: surviving troops recover near controlled supply points, while battered forces withdraw and must regroup.
+- **Special projects**: 36-minute war rifts can spawn lost-archive recoveries, hostile chronal spires, and civilian escorts; winning these awards war resources and Insight.
+
+## Ideas deliberately NOT claimed as shipped
+
+- Physics-stable whole-city rotations and reconfigured interiors/roads.
+- Fully destructible architecture and battlefields that rebuild themselves into another century.
+- Persistent economic politics and centuries of NPC family histories reacting causally to time travel.
+- Predictive enemy commanders that learn per player over dozens of sessions.
+- AAA-resolution art, large soldier crowds, native multiplayer, voiced quest cinematics.
+
+**Ruling principle:** research, cleverness, and chosen aesthetics decide the future. The calendar never does.

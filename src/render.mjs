@@ -138,8 +138,29 @@ export class WorldRenderer {
   else if(place.id==='freehold'){for(let k=0;k<6;k++){const a=k*TAU/6;this.add('cylinder',x+Math.sin(a)*10,y+1.2,z+Math.cos(a)*10,4,2.4,4,palette.wood);this.add('cone',x+Math.sin(a)*10,y+4,z+Math.cos(a)*10,5.5,3.8,5.5,palette.ash);}this.add('gem',x,y+5,z,1,5,1,palette.mint,t*.4,0,.8);}
  }
  drawWarfront(s,ui){const w=s.war,p=s.player,clock=s.time;const base=(b,ally)=>{if(dist(b,p)>this.radius)return;const y=terrainHeight(b.x,b.z,s.seed,s.zone),c=ally?palette.mint:palette.red;this.add('cylinder',b.x,y+.35,b.z,18,1.0,18,palette.ash);for(const [dx,dz]of [[-8,-8],[-8,8],[8,-8],[8,8]]){this.add('cube',b.x+dx,y+5,b.z+dz,3.5,10,3.5,palette.metal);this.add('cone',b.x+dx,y+11,b.z+dz,4.5,3.5,4.5,c);}this.add('cube',b.x,y+3,b.z,13,6,13,palette.ash);this.add('gem',b.x,y+9,b.z,3,8,3,c,clock*.25,0,.65);this.healthMarker(b.x,y+14,b.z,b.hp/b.maxHp,c);};base(w.base,true);base(w.enemyBase,false);
+ for(const a of w.anchors)if(a.hp>0&&dist(a,p)<this.radius){const y=terrainHeight(a.x,a.z,s.seed,s.zone);this.add('cylinder',a.x,y+5,a.z,6.8,10,6.8,palette.ash);for(const dx of [-5,5])this.add('cube',a.x+dx,y+8,a.z,2.2,10,2.2,palette.metal);this.add('ring',a.x,y+13,a.z,8,.45,8,palette.purple,s.time*.24,Math.PI/2,.75);this.add('gem',a.x,y+14,a.z,3,6,3,palette.purple,s.time*.4,0,.95);this.healthMarker(a.x,y+20,a.z,a.hp/a.maxHp,palette.red);}
  for(const n of w.nodes)if(dist(n,p)<this.radius){const y=terrainHeight(n.x,n.z,s.seed,s.zone),c=n.owner==='ally'?palette.mint:n.owner==='enemy'?palette.red:palette.amber;this.add('ring',n.x,y+.4,n.z,11,.5,11,c,clock*.16,0,.7);this.add('gem',n.x,y+4,n.z,2,7,2,c,clock*.3,0,.85);}
  for(const b of w.buildings)if(dist(b,p)<this.radius){const y=terrainHeight(b.x,b.z,s.seed,s.zone),c=b.kind==='foundry'?palette.amber:palette.steel;if(b.kind==='barracks'){this.add('cube',b.x,y+2.6,b.z,10,5.2,8,palette.wood);this.add('cone',b.x,y+6,b.z,11,4,9,c);this.add('gem',b.x,y+8,b.z,1,2,1,palette.mint);}else if(b.kind==='foundry'){this.add('cube',b.x,y+2.3,b.z,10,4.6,10,palette.ash);for(const i of [-1,1])this.add('cylinder',b.x+i*3,y+5,b.z,1.8,8,1.8,c);this.add('ring',b.x,y+7,b.z,7,.4,7,palette.mint,clock*.35,0,.7);}else{this.add('cylinder',b.x,y+5,b.z,4.5,10,4.5,palette.steel);this.add('cone',b.x,y+11,b.z,6,4,6,palette.amber);}}
+ // Optional frontline crises are actual objects in the battlefield, not only objectives in a menu.
+ const e=w.expedition;if(e&&dist(e,p)<this.radius){const y=terrainHeight(e.x,e.z,s.seed,s.zone);
+  this.add('ring',e.x,y+.25,e.z,11,.27,11,palette.amber,clock*.35,0,.82);
+  if(e.type==='spire'){
+   this.add('cylinder',e.x,y+5,e.z,3.1,10,3.1,palette.metal);
+   this.add('gem',e.x,y+12+Math.sin(clock*2)*.7,e.z,2.9,5,2.9,palette.red,clock*.6,0,.95);
+   this.add('ring',e.x,y+12,e.z,5,.5,5,palette.purple,clock*.6,Math.PI/2,.8);
+   this.healthMarker(e.x,y+18,e.z,e.hp/e.maxHp,palette.red);
+  }else if(e.type==='salvage'){
+   for(const [dx,dz]of [[-3,-3],[3,3],[-3,3],[3,-3]])this.add('cylinder',e.x+dx,y+.9,e.z+dz,.9,2,.9,palette.metal);
+   this.add('cube',e.x,y+2.0,e.z,6,3.4,5.5,palette.ash);
+   this.add('gem',e.x,y+5+Math.sin(clock*3)*.5,e.z,2.6,3.3,2.6,palette.amber,clock*.4,0,.92);
+  }else if(e.type==='escort'){
+   this.add('cube',e.x,y+1.3,e.z,8,2.6,4,palette.wood);
+   this.add('cube',e.x,y+3,e.z,5,1.3,3,palette.ash);
+   for(const dx of [-3,3])for(const dz of [-2.2,2.2])this.add('cylinder',e.x+dx,y+.7,e.z+dz,1.5,1.8,1.5,palette.metal,Math.PI/2,0,0);
+   this.add('gem',e.x,y+5,e.z,1.5,3,1.5,palette.mint,clock*.35,0,.7);
+   this.healthMarker(e.x,y+7,e.z,e.hp/e.maxHp,palette.mint);
+  }
+ }
  for(const unit of [...w.army,...w.enemyArmy]){if(unit.count<=0||dist(unit,p)>this.radius-8)continue;const spec=BATTALIONS[unit.type],c=unit.side==='ally'?ERAS[spec.era].terrain:palette.red,visible=Math.min(unit.count,this.software?5:Math.min(14,unit.count));for(let i=0;i<visible;i++){const dx=((i%4)-1.5)*1.9,dz=(Math.floor(i/4)-1)*2.0,x=unit.x+dx,z=unit.z+dz,y=terrainHeight(x,z,s.seed,s.zone),angle=unit.side==='ally'?Math.PI:0;this.humanoid(x,y,z,c,spec.era==='steam'?1.12:.90,angle,unit.side==='ally'?'friendly':'enemy',clock);if(unit.type==='riders'||unit.type==='cannons'){this.add('cube',x,y+.48,z,2.1,.8,2.2,palette.wood);}}if(ui.commander){const y=terrainHeight(unit.x,unit.z,s.seed,s.zone);this.add('ring',unit.x,y+.12,unit.z,6,.2,6,unit.side==='ally'?palette.mint:palette.red,0,0,.6);}}
  }
  drawScene(s,ui={}){this.clock=s.time;this.activeSeed=s.seed;this.activeZone=s.zone;this.rebuildTerrain(s);this.rebuildProps(s);for(const m of Object.values(this.meshes))m.instancesData=[];

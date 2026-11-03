@@ -1,3 +1,23 @@
+# CrownFold v0.6 — Lost Futures + The Living War verification (2026-11-03)
+
+**Build:** desktop browser single-player **pre-alpha**. Current tests prove simulation safety and UI flows, not AAA readiness.
+
+- `npm test`: **144 / 144 automated tests pass**, covering all prior RPG, cross-era, RTS war, lost sciences and the new war director systems.
+- `npm run check`: syntax/lint checks for all maintained JavaScript modules.
+- `npm run build`: rebuilt the offline HTML game with `src/lineage.mjs` included.
+- `python tests/lost_futures_browser.py`: **23 feature checks pass**, including heritage change, ten sciences, field-power gating and mixed armies.
+- `python tests/war_director_browser.py`: **11 interactive checks pass**, including timed crisis spawn, objective HUD, completion, reward, and continued command. No reported page errors.
+- `python tests/chronicle_browser.py`: **21 checks pass** across world travel, dialogue, RTS production and war victory.
+- Original RPG integration tests remain supported; automated tests use fast-forward and test-state teleportation where appropriate.
+
+**Balance finding:** a scripted auto-commander can complete or lose current prototype wars in roughly **3–8 simulated minutes** despite the 36-minute timer. Two destructible anchors now create a multi-stage siege, but full 25–45-minute authored mission pacing remains **unmet** and requires scenario design, content, human playtesting and repeated benchmarks.
+
+**Renderer:** hardware-accelerated WebGL2 is present in source but physical GPU QA is missing; browser captures in this environment use the software fallback. The build does not use Unreal Engine and has not shipped multiplayer, native physics or large-scale AI.
+
+**Wiki:** Markdown documents are in the repository-backed `wiki/` mirror, not yet synchronized to GitHub's separate Wiki Git repository.
+
+---
+
 # CrownFold v0.4 — Great Entanglement verification (2026-11-03)
 
 **Release:** experimental browser vertical slice. All statements below refer to actual local checks; not native AAA gameplay or a fully human-playtested campaign.

@@ -1,4 +1,5 @@
 // CROWNFOLD — five playable chronal strata. Original names, settings and counterplay.
+import {makeLineage,migrateLineage} from './lineage.mjs';
 // Time fracture is a civic/economic collapse, not an apocalypse: the world wasn't destroyed.
 export const ERA_ORDER=Object.freeze(['medieval','primeval','steam','neon','farfuture']);
 export const ERAS=Object.freeze({
@@ -29,26 +30,31 @@ export const RIFT_SITES=Object.freeze([
  {era:'farfuture',x:-22,z:27,label:'LAST TOMORROW · 8420'},
  {era:'medieval',x:0,z:24,label:'CROWNLESS MARCH · 1278'}
 ]);
-export const ERA_COUNTERS=Object.freeze({medieval:'neon',primeval:'farfuture',steam:'medieval',neon:'steam',farfuture:'medieval'});
-export function counters(attacker,defender){return ERA_COUNTERS[attacker]===defender;}
-export function battleAffinity(attacker,defender,facetEra=null){let multiplier=1;if(counters(attacker,defender))multiplier*=1.30;if(counters(defender,attacker))multiplier*=.77;if(facetEra===attacker)multiplier*=1.19;else if(facetEra===defender)multiplier*=.86;return multiplier;}
+// A date never hard-counters another date. Unit roles, a commander's discoveries and
+// localized chronal fields create advantages; the same builds are available in any era.
+export function battleAffinity(attacker,defender,facetEra=null){
+ if(facetEra===attacker)return 1.14;
+ if(facetEra===defender)return .94;
+ return 1;
+}
 export const epochSeed=(base,era)=>((base^ERAS[era]?.seedOffset)||base)|0;
-export function makeTemporal(seed){return {baseSeed:seed,eraPositions:{medieval:{x:0,z:0}},visited:['medieval'],selectedEra:'primeval',facets:[],foldRevision:0,worldCaches:[],worldFlags:{},wonCampaigns:[],insight:0,skill:{ancestor:0,engineer:0,oracle:0},returnEra:'medieval',chronicleLog:['You awoke in the Crownless March, 1278. The bells ring in every century.']};}
+export function makeTemporal(seed){return {baseSeed:seed,eraPositions:{medieval:{x:0,z:0}},visited:['medieval'],selectedEra:'primeval',facets:[],foldRevision:0,worldCaches:[],worldFlags:{},wonCampaigns:[],insight:0,skill:{ancestor:0,engineer:0,oracle:0},lineage:makeLineage(),returnEra:'medieval',chronicleLog:['You awoke in the Crownless March, 1278. The bells ring in every century.']};}
 export function validEra(era){return Object.hasOwn(ERAS,era);}
 export function availableRifts(era){return RIFT_SITES.filter(x=>x.era!==era).map(x=>({...x,type:'advanced'}));}
 export function eraSites(era){const e=ERAS[era];if(!e)return [];return e.siteNames.map((name,i)=>({id:`${era}-${i}`,era,name,x:[-72,96,14][i],z:[-78,55,125][i],kind:'chronicle',description:`A surviving landmark of ${e.period}. History was never erased; it was rearranged.`}));}
 export function facetKey(era,zone,x,z){return `${era}:${zone}:${Math.round(x/24)}:${Math.round(z/24)}`;}
 export function facetAt(s,x,z){const key=facetKey(s.era||'medieval',s.zone,x,z);return s.temporal?.facets.find(f=>f.key===key)||null;}
 export function cycleFacetEra(s){if(!s.temporal)return 'primeval';const i=ERA_ORDER.indexOf(s.temporal.selectedEra);s.temporal.selectedEra=ERA_ORDER[(i+1)%ERA_ORDER.length];return s.temporal.selectedEra;}
-export function stampFacet(s,x,z,direction=1){const t=s.temporal;if(!t)return null;const key=facetKey(s.era,s.zone,x,z),index=t.facets.findIndex(f=>f.key===key),old=index>=0?t.facets[index]:null;
- const f={key,origin:s.era,zone:s.zone,x:Math.round(x/24)*24,z:Math.round(z/24)*24,era:t.selectedEra,turn:((old?.turn||0)+direction+4)%4};
+export function stampFacet(s,x,z,direction=1,targetEra=null){const t=s.temporal;if(!t)return null;const key=facetKey(s.era,s.zone,x,z),index=t.facets.findIndex(f=>f.key===key),old=index>=0?t.facets[index]:null;
+ const f={key,origin:s.era,zone:s.zone,x:Math.round(x/24)*24,z:Math.round(z/24)*24,era:validEra(targetEra)?targetEra:t.selectedEra,turn:((old?.turn||0)+direction+4)%4};
  if(index>=0)t.facets.splice(index,1);t.facets.push(f);if(t.facets.length>90)t.facets.shift();t.foldRevision++;t.insight+=1;return f;
 }
 export function spendInsight(s,path){const t=s.temporal;if(!t||!['ancestor','engineer','oracle'].includes(path))return false;const rank=t.skill[path]||0,cost=5+rank*5;if(rank>=3||t.insight<cost)return false;t.insight-=cost;t.skill[path]++;return true;}
-export function temporalModifier(s,unitEra,defenderEra,x,z){const f=facetAt(s,x,z);let mult=battleAffinity(unitEra,defenderEra,f?.era||s.era);if(unitEra==='medieval'||unitEra==='primeval')mult*=1+(s.temporal?.skill.ancestor||0)*.07;if(unitEra==='steam')mult*=1+(s.temporal?.skill.engineer||0)*.08;if(unitEra==='neon'||unitEra==='farfuture')mult*=1+(s.temporal?.skill.oracle||0)*.07;return mult;}
+export function temporalModifier(s,unitEra,defenderEra,x,z){const f=facetAt(s,x,z);let mult=battleAffinity(unitEra,defenderEra,f?.era||s.era);// Legacy Chronicle drills now benefit any battalion, independent of chronological origin.
+ mult*=1+(s.temporal?.skill.ancestor||0)*.05;return mult;}
 export function migrateTemporal(data,seed){const defaults=makeTemporal(seed);if(!data||typeof data!=='object')return defaults;
  const eraPositions={};for(const [key,pos]of Object.entries(data.eraPositions||{}))if(validEra(key)&&pos&&Number.isFinite(pos.x)&&Number.isFinite(pos.z))eraPositions[key]={x:Math.max(-10000,Math.min(10000,pos.x)),z:Math.max(-10000,Math.min(10000,pos.z))};
  const facets=(Array.isArray(data.facets)?data.facets:[]).slice(-90).filter(f=>validEra(f.era)&&validEra(f.origin)&&['frontier','operation'].includes(f.zone)&&Number.isFinite(f.x)&&Number.isFinite(f.z)).map(f=>({...f,key:facetKey(f.origin,f.zone,f.x,f.z),turn:Math.max(0,Math.min(3,Math.trunc(f.turn||0)))}));
  const skill={};for(const k of Object.keys(defaults.skill))skill[k]=Math.max(0,Math.min(3,Math.trunc(data.skill?.[k]||0)));
- return {...defaults,baseSeed:Number.isInteger(data.baseSeed)?data.baseSeed:seed,eraPositions:{...defaults.eraPositions,...eraPositions},selectedEra:validEra(data.selectedEra)?data.selectedEra:defaults.selectedEra,facets,foldRevision:facets.length,visited:[...new Set(['medieval',...(Array.isArray(data.visited)?data.visited.filter(validEra):[])])],worldCaches:Array.isArray(data.worldCaches)?data.worldCaches.filter(x=>typeof x==='string').slice(0,200):[],worldFlags:typeof data.worldFlags==='object'&&data.worldFlags?data.worldFlags:{},wonCampaigns:Array.isArray(data.wonCampaigns)?data.wonCampaigns.filter(x=>typeof x==='string').slice(0,100):[],insight:Math.max(0,Math.min(10000,Number(data.insight)||0)),skill,chronicleLog:Array.isArray(data.chronicleLog)?data.chronicleLog.filter(x=>typeof x==='string').slice(-40):defaults.chronicleLog};
+ return {...defaults,baseSeed:Number.isInteger(data.baseSeed)?data.baseSeed:seed,eraPositions:{...defaults.eraPositions,...eraPositions},selectedEra:validEra(data.selectedEra)?data.selectedEra:defaults.selectedEra,facets,foldRevision:facets.length,visited:[...new Set(['medieval',...(Array.isArray(data.visited)?data.visited.filter(validEra):[])])],worldCaches:Array.isArray(data.worldCaches)?data.worldCaches.filter(x=>typeof x==='string').slice(0,200):[],worldFlags:typeof data.worldFlags==='object'&&data.worldFlags?data.worldFlags:{},wonCampaigns:Array.isArray(data.wonCampaigns)?data.wonCampaigns.filter(x=>typeof x==='string').slice(0,100):[],insight:Math.max(0,Math.min(10000,Number(data.insight)||0)),skill,lineage:migrateLineage(data.lineage),chronicleLog:Array.isArray(data.chronicleLog)?data.chronicleLog.filter(x=>typeof x==='string').slice(-40):defaults.chronicleLog};
 }
