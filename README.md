@@ -54,6 +54,10 @@ A king may rent a railgun. A mammoth hunter may destroy an oracle army using unn
 - Persistent browser-local RPG save with backwards migration from the previous v0.3 prototype. War operations do not save mid-battle; victory rewards persist.
 - Original six-phase 36-minute shooter operations plus original standalone chess-inspired rotating board game.
 
+### Combat impact update
+
+Player weapon pellets resolve against the nearest individual enemy, war battalion, anchor, objective or fortification. Cover blocks shots behind it, tracers end at the impact, and launcher blasts begin at that point. War targets use finite-height approximate collision volumes over local terrain; they are not detailed mesh collisions. Weapon range and aim elevation apply to these impacts.
+
 ### Warforged combat and tactical movement — new in v0.8
 
 - **Breakable cover:** every War Rift map now has seven destructible battlefield cover positions, with historically inspired alternate aesthetics. Cover blocks both formations and ranged fire until breached.

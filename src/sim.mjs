@@ -2,7 +2,7 @@
 // All persistent gameplay state lives here; rendering, audio and input never own it.
 import {makeRPG,generateBounty,restoreRPG,rpgStat,grantXP,rpgEvent,discoverNearby,markDiscovered,openChest,LANDMARKS,LOCKBOXES,NPCS,DUNGEON_BY_ID,DUNGEONS,perkRank} from './rpg.mjs';
 import {ERA_ORDER,ERAS,CHRONICLE,availableRifts,eraSites,makeTemporal,migrateTemporal,epochSeed,validEra,cycleFacetEra,stampFacet,facetAt,temporalModifier} from './temporal.mjs';
-import {WAR_CAMPAIGNS,createWarfront,trainBattalion,constructWarBuilding,warOrder,stepWarfront,warObjective,signalWarExtraction,shootWarBattalion,warExplosion} from './war.mjs';
+import {WAR_CAMPAIGNS,createWarfront,trainBattalion,constructWarBuilding,warOrder,stepWarfront,warObjective,signalWarExtraction,traceWarShot,applyWarShot,warExplosion} from './war.mjs';
 export const SEED = 0xC0F01D;
 export const TAU = Math.PI * 2;
 export const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
@@ -100,30 +100,38 @@ export function setWeapon(s,name){if(!(name in WEAPONS))return false;s.player.we
 function hitEnemy(s,e,damage,source='player'){if(e.hp<=0)return;e.hp-=damage;effect(s,'hit',e.x,e.z,{amount:Math.round(damage),kind:e.kind});if(e.hp>0)return;e.hp=0;e.dead=true;if(source==='player'){s.player.kills++;grantXP(s,ENEMIES[e.kind].reward);rpgEvent(s,'kill',e.kind);for(const id of s.rpg.companions)s.rpg.affinity[id]=clamp((s.rpg.affinity[id]||0)+.3,0,100);if(e.elite&&s.rpg){s.rpg.coins+=15;emit(s,'ELITE TARGET / +15 CROWNS','success');}}s.pickups.push({id:++s.nextId,x:e.x,z:e.z,y:e.y,kind:e.kind==='factory'?'cache':e.kind==='titan'?'relic':'scrap',amount:e.kind==='factory'?55:e.kind==='titan'?150:3+ENEMIES[e.kind].reward,at:s.time});effect(s,'death',e.x,e.z,{kind:e.kind});if(e.kind==='factory'&&s.operation?.stage===1){s.operation.destroyed++;emit(s,`FABRICATOR DOWN / ${s.operation.destroyed}/2`,'success');}if(e.kind==='titan'&&s.operation?.stage===4){s.operation.bossDead=true;emit(s,'THE IRON SAINT HAS FALLEN','success');}if(s.dungeon?.bossId===e.id){s.dungeon.bossDead=true;emit(s,'DUNGEON GUARDIAN FALLEN / THE RELIC IS UNSEALED','success');}}
 export function shoot(s,aim,force=false){const p=s.player,w=WEAPONS[p.weapon];if(p.reload>0||p.fireCooldown>0||p.hp<=0)return false;if(p.ammo[p.weapon]<=0){reload(s);return false;}p.ammo[p.weapon]--;p.fireCooldown=w.rate;p.shots++;
   p.lastShotAt=s.time;if(s.rpg.status.cloak>0){s.rpg.status.cloak=0;emit(s,'GHOST VEIL BROKEN BY GUNFIRE','warning');}
-  const origin={x:p.x+Math.cos(p.yaw)*.33,z:p.z+Math.sin(p.yaw)*.33,y:terrainHeight(p.x,p.z,s.seed,s.zone)+1.7};let hadHit=false,explosiveTarget=null;
+  const origin={x:p.x+Math.cos(p.yaw)*.33,z:p.z+Math.sin(p.yaw)*.33,y:terrainHeight(p.x,p.z,s.seed,s.zone)+1.7};let hadHit=false,explosiveImpact=null;
   for(let i=0;i<w.shots;i++){const driftYaw=(hash(p.shots*13+i,44,s.seed)-.5)*w.spread*2,driftPitch=(hash(p.shots*7+i,43,s.seed)-.5)*w.spread*2;
-    const yaw=(aim?.yaw??p.yaw)+driftYaw,pitch=clamp((aim?.pitch??p.pitch)+driftPitch,-1.25,1.25);
-    const direction={x:Math.sin(yaw)*Math.cos(pitch),y:Math.sin(pitch),z:-Math.cos(yaw)*Math.cos(pitch)};
-    let closest=null,best=w.range;
-    let weak=false;
+    const yaw=(aim?.yaw??p.yaw)+driftYaw,pitch=clamp((aim?.pitch??p.pitch)+driftPitch,-1.25,1.25),horizontal=Math.cos(pitch);
+    const direction={x:Math.sin(yaw)*horizontal,y:Math.sin(pitch),z:-Math.cos(yaw)*horizontal};
+    let closest=null,best=w.range,weak=false;
     for(const e of s.enemies){if(e.hp<=0)continue;const def=ENEMIES[e.kind],cy=terrainHeight(e.x,e.z,s.seed,s.zone)+(e.kind==='titan'?3.7:e.kind==='factory'?2.0:1.15);
       const dx=e.x-origin.x,dy=cy-origin.y,dz=e.z-origin.z,t=dx*direction.x+dy*direction.y+dz*direction.z;
-      if(t<0||t>best)continue;const radius=def.radius*(e.kind==='factory'?1.1:1);
-      const d2=(dx*dx+dy*dy+dz*dz)-t*t;
+      const radius=def.radius*(e.kind==='factory'?1.1:1),d2=dx*dx+dy*dy+dz*dz-t*t;
       const headY=cy+(e.kind==='titan'?2.3:.89),headRadius=e.kind==='titan'?1.25:.45;
       const headDelta=headY-origin.y,ht=dx*direction.x+headDelta*direction.y+dz*direction.z;
-      const headDist=(dx*dx+headDelta*headDelta+dz*dz)-ht*ht;
-      const critical=e.kind!=='factory'&&ht>0&&ht<w.range&&headDist<headRadius*headRadius;
-      if(d2<radius*radius||critical){best=critical?Math.min(t,ht):t;closest=e;weak=critical;}
+      const headDist=dx*dx+headDelta*headDelta+dz*dz-ht*ht;
+      const critical=e.kind!=='factory'&&ht>0&&headDist<headRadius*headRadius;
+      const body=d2<radius*radius&&t+Math.sqrt(Math.max(0,radius*radius-d2))>0;
+      if(!body&&!critical)continue;
+      const entry=critical?Math.max(0,ht-Math.sqrt(Math.max(0,headRadius*headRadius-headDist))):Math.max(0,t-Math.sqrt(Math.max(0,radius*radius-d2)));
+      if(entry<best){best=entry;closest=e;weak=critical;}
     }
-    if(closest){const multiplier=weak?(p.weapon==='rail'?2.25:1.8):1;
-      hitEnemy(s,closest,w.damage*multiplier*rpgStat(s,'damage')*(closest.hp/closest.maxHp<.5?rpgStat(s,'execute'):1)*(p.crouch&&!closest.aggro?1.65+perkRank(s,'shadow')*.1:1), 'player');
+    // RTS objects are represented by horizontal footprints. Compare in 3D ray
+    // distance so cover, battalions and individual enemies cannot all absorb one pellet.
+    const warHit=s.war?traceWarShot(s,origin,yaw,best*horizontal,{pitch,ground:(x,z)=>terrainHeight(x,z,s.seed,s.zone)}):null;
+    if(warHit){best=warHit.distance/horizontal;closest=null;weak=false;hadHit=applyWarShot(s,warHit,w.damage*.75)||hadHit;}
+    else if(closest){const multiplier=weak?(p.weapon==='rail'?2.25:1.8):1;
+      hitEnemy(s,closest,w.damage*multiplier*rpgStat(s,'damage')*(closest.hp/closest.maxHp<.5?rpgStat(s,'execute'):1)*(p.crouch&&!closest.aggro?1.65+perkRank(s,'shadow')*.1:1),'player');
       if(weak){p.weakHits=(p.weakHits||0)+1;closest.stagger=Math.max(closest.stagger||0,.43);effect(s,'weakpoint',closest.x,closest.z,{amount:Math.round(w.damage*multiplier)});}
-      if(p.weapon==='cryo'&&closest.hp>0)closest.frozen=Math.max(closest.frozen||0,2.1);if(p.weapon==='launcher')explosiveTarget=closest;hadHit=true;}
-    if(i===0 || w.shots<=1){const end={x:origin.x+direction.x*best,z:origin.z+direction.z*best,y:origin.y+direction.y*best};effect(s,'tracer',origin.x,origin.z,{fromY:origin.y,toX:end.x,toY:end.y,toZ:end.z,hit:!!closest});}
+      if(p.weapon==='cryo'&&closest.hp>0)closest.frozen=Math.max(closest.frozen||0,2.1);hadHit=true;
+    }
+    const end={x:origin.x+direction.x*best,z:origin.z+direction.z*best,y:origin.y+direction.y*best};
+    if(p.weapon==='launcher'&&(closest||warHit))explosiveImpact=end;
+    if(i===0||w.shots<=1)effect(s,'tracer',origin.x,origin.z,{fromY:origin.y,toX:end.x,toY:end.y,toZ:end.z,hit:!!closest||!!warHit});
   }
-  if(p.weapon==='launcher'){const x=explosiveTarget?.x??origin.x+Math.sin(aim?.yaw??p.yaw)*31,z=explosiveTarget?.z??origin.z-Math.cos(aim?.yaw??p.yaw)*31;applyExplosion(s,x,z,125*rpgStat(s,'blast'),10);}if(hadHit)p.hit++;
-  if(s.war){if(shootWarBattalion(s,aim,w.damage*.75))hadHit=true;}if(p.ammo[p.weapon]===0 && p.reserve[p.weapon])p.fireCooldown=Math.max(p.fireCooldown,.35);
+  if(p.weapon==='launcher'){const x=explosiveImpact?.x??origin.x+Math.sin(aim?.yaw??p.yaw)*31,z=explosiveImpact?.z??origin.z-Math.cos(aim?.yaw??p.yaw)*31;applyExplosion(s,x,z,125,10);}if(hadHit)p.hit++;
+  if(p.ammo[p.weapon]===0 && p.reserve[p.weapon])p.fireCooldown=Math.max(p.fireCooldown,.35);
   return true;
 }
 export function grenade(s){const p=s.player;if(!p.grenades)return false;p.grenades--;const x=p.x+Math.sin(p.yaw)*18,z=p.z-Math.cos(p.yaw)*18;
