@@ -9,7 +9,7 @@ CrownFold is an original open-world third-person survival RPG with live RTS comm
 ## Play without installation
 
 1. Download/open [`dist/CROWNFOLD-RIFTFRONT.html`](dist/CROWNFOLD-RIFTFRONT.html) in a desktop browser; it embeds all scripts and styles and plays offline.
-2. **Enter the Open World** to start in the Crownless March. **Quick War** begins the first RTS war campaign, while **Classic 36 Min Rift Operation** starts the earlier six-stage shooter mission.
+2. **Enter the Open World** to start in the Crownless March. **Quick War** begins the first RTS war campaign, while **Classic 36 Min Rift Operation** starts the earlier six-stage shooter mission. Quick sessions have a separate frontier save from the open world; use **Continue Quick Session** to return to it. Starting a new session asks before replacing its existing save. Mission progress itself is not resumed after a reload.
 3. For modular source, use Node.js 22+: `npm start` and visit `http://localhost:3000` (the server prints the address). `npm test` runs the deterministic simulation tests; `npm run build` recreates the offline HTML. `npm run benchmark` measures headless CPU battle-step costs (not actual game FPS).
 4. Open [`legacy/CROWNFOLD-ORIGINAL.html`](legacy/CROWNFOLD-ORIGINAL.html) for the original rotating 3D board-game experiment.
 

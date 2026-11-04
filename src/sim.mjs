@@ -354,10 +354,10 @@ export function restore(raw){let data;try{data=typeof raw==='string'?JSON.parse(
   for(const name of Object.keys(s.inventory))if(Number.isFinite(data.inventory[name]))s.inventory[name]=clamp(data.inventory[name],0,100000);
   for(const name of Object.keys(s.player))if(name in data.player){const v=data.player[name];if(typeof s.player[name]==='number'&&Number.isFinite(v))s.player[name]=clamp(v,-10000,10000);else if(name==='weapon'&&v in WEAPONS)s.player.weapon=v;else if(['ammo','reserve'].includes(name)&&v&&typeof v==='object'){for(const type of Object.keys(WEAPONS))if(Number.isFinite(v[type]))s.player[name][type]=clamp(v[type],0,9999);}}
   s.player.maxHp=rpgStat(s,'health');s.player.maxShield=rpgStat(s,'shield');s.player.shield=clamp(s.player.shield,0,s.player.maxShield);s.player.memories=[];s.player.x=clamp(s.player.x,-10000,10000);s.player.z=clamp(s.player.z,-10000,10000);s.player.y=terrainHeight(s.player.x,s.player.z,s.seed);s.player.hp=clamp(s.player.hp,1,s.player.maxHp);
-  s.buildings=data.buildings.slice(0,500).filter(b=>STRUCTURES[b.kind]&&Number.isFinite(b.x)&&Number.isFinite(b.z)&&Number.isFinite(b.hp)).map(b=>({...b,zone:'frontier',era:validEra(b.era)?b.era:'medieval'}));
-  s.squad=data.squad.slice(0,8).filter(u=>Number.isFinite(u.x)&&Number.isFinite(u.z)&&Number.isFinite(u.hp)&&u.hp>0).map(u=>({...u,order:'follow'}));s.rpg.companions=s.rpg.companions.filter(id=>s.squad.some(u=>u.npcId===id));
-  s.harvested=Array.isArray(data.harvested)?data.harvested.filter(v=>typeof v==='string').slice(0,50000):[];
-  s.cleared=Array.isArray(data.cleared)?data.cleared.filter(v=>typeof v==='string').slice(0,50000):[];
+  s.buildings=data.buildings.filter(b=>b&&STRUCTURES[b.kind]&&Number.isFinite(b.x)&&Number.isFinite(b.z)&&Number.isFinite(b.hp)).map(b=>({...b,zone:'frontier',era:validEra(b.era)?b.era:'medieval'}));
+  s.squad=data.squad.filter(u=>u&&Number.isFinite(u.x)&&Number.isFinite(u.z)&&Number.isFinite(u.hp)&&u.hp>0).map(u=>({...u,order:'follow'}));s.rpg.companions=s.rpg.companions.filter(id=>s.squad.some(u=>u.npcId===id));
+  s.harvested=Array.isArray(data.harvested)?data.harvested.filter(v=>typeof v==='string'):[];
+  s.cleared=Array.isArray(data.cleared)?data.cleared.filter(v=>typeof v==='string'):[];
   if(data.stats&&typeof data.stats==='object')for(const k of Object.keys(s.stats))if(Number.isFinite(data.stats[k]))s.stats[k]=clamp(data.stats[k],0,1000000);
   if(Number.isSafeInteger(data.nextId))s.nextId=clamp(data.nextId,100,10000000);
   emit(s,'SURVIVAL SAVE RESTORED','success');return s;
