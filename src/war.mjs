@@ -299,17 +299,50 @@ function updateGroup(s,g,enemies,base,dt){const w=s.war,def=BATTALIONS[g.type];i
  }
  if(!g.retreating||distance(g,rallyPoint)>26)fire(s,g,enemies,base,dt);
 }
-export function shootWarBattalion(s,aim,damage){const w=s.war;if(!w)return false;const p=s.player,yaw=aim?.yaw??p.yaw,dir={x:Math.sin(yaw),z:-Math.cos(yaw)};let best=null,along=Infinity;
- for(const enemy of w.enemyArmy){if(enemy.count<=0)continue;const dx=enemy.x-p.x,dz=enemy.z-p.z,t=dx*dir.x+dz*dir.z,off=Math.abs(dx*dir.z-dz*dir.x);if(t>0&&t<90&&off<3.8&&t<along){best=enemy;along=t;}}
- const cover=firstCoverBetween(p,{x:p.x+dir.x*(best?along:95),z:p.z+dir.z*(best?along:95)},w.cover||[],.2);
- if(cover){hitWarCover(w,cover,damage*(s.player.weapon==='launcher'?1.5:1));return true;}
- if(best){hitGroup(s,best,damage*1.6);return true;}
- for(const anchor of activeAnchors(w)){const dx=anchor.x-p.x,dz=anchor.z-p.z,t=dx*dir.x+dz*dir.z;if(t>0&&t<95&&Math.abs(dx*dir.z-dz*dir.x)<6){hitAnchor(w,anchor,damage*1.1);return true;}}
- const objective=w.expedition;if(objective?.type==='spire'){
-  const dx=objective.x-p.x,dz=objective.z-p.z,t=dx*dir.x+dz*dir.z;
-  if(t>0&&t<100&&Math.abs(dx*dir.z-dz*dir.x)<5){objective.hp=Math.max(0,objective.hp-damage);return true;}
- }
- const b=w.enemyBase,dx=b.x-p.x,dz=b.z-p.z,t=dx*dir.x+dz*dir.z;if(t>0&&t<92&&Math.abs(dx*dir.z-dz*dir.x)<11){damageEnemyBase(w,damage*.9);return true;}return false;
+// Return the closest impact in the horizontal battlefield plane. Targets use the
+// same footprints as the existing RTS shooter; the caller compares this distance
+// with individual-enemy hits before applying damage.
+export function traceWarShot(s,origin,yaw,range=95,vertical=null){
+ const w=s.war;if(!w)return null;
+ const dir={x:Math.sin(yaw),z:-Math.cos(yaw)};let best=null;
+ const consider=(kind,target,radius,maxRange=range)=>{
+  const dx=target.x-origin.x,dz=target.z-origin.z,t=dx*dir.x+dz*dir.z;
+  const perpendicular=dx*dx+dz*dz-t*t,rr=radius*radius;
+  if(perpendicular>rr)return;
+  const half=Math.sqrt(Math.max(0,rr-perpendicular));
+  if(t+half<0)return;
+  let distance=Math.max(0,t-half),exit=t+half;
+  if(vertical){
+   // Intersect the ray with a finite-height gameplay volume at the local terrain.
+   const ground=vertical.ground(target.x,target.z)-1;
+   const height=kind==='cover'?(target.kind==='clockwork'?8:7):kind==='group'?4:kind==='anchor'?18:kind==='spire'?16:15;
+   const rise=Math.tan(vertical.pitch),y=origin.y;
+   if(Math.abs(rise)<1e-8){if(y<ground||y>ground+height)return;}
+   else {const a=(ground-y)/rise,b=(ground+height-y)/rise;distance=Math.max(distance,Math.min(a,b));exit=Math.min(exit,Math.max(a,b));}
+  }
+  if(distance>exit||distance>Math.min(range,maxRange)||(best&&distance>=best.distance))return;
+  best={kind,target,distance};
+ };
+ for(const cover of w.cover||[])if(cover.hp>0)consider('cover',cover,cover.radius+.2);
+ for(const enemy of w.enemyArmy)if(enemy.count>0)consider('group',enemy,3.8,90);
+ for(const anchor of activeAnchors(w))consider('anchor',anchor,6,95);
+ if(w.expedition?.type==='spire'&&w.expedition.hp>0)consider('spire',w.expedition,5,100);
+ consider('base',w.enemyBase,11,92);
+ return best;
+}
+export function applyWarShot(s,impact,damage){
+ if(!impact||!s.war)return false;
+ const w=s.war,t=impact.target;
+ if(impact.kind==='cover')return hitWarCover(w,t,damage*(s.player.weapon==='launcher'?1.5:1));
+ if(impact.kind==='group'){hitGroup(s,t,damage*1.6);return true;}
+ if(impact.kind==='anchor')return hitAnchor(w,t,damage*1.1);
+ if(impact.kind==='spire'){t.hp=Math.max(0,t.hp-damage);return true;}
+ if(impact.kind==='base'){damageEnemyBase(w,damage*.9);return true;}
+ return false;
+}
+export function shootWarBattalion(s,aim,damage){
+ const p=s.player,impact=traceWarShot(s,p,aim?.yaw??p.yaw);
+ return applyWarShot(s,impact,damage);
 }
 export function warExplosion(s,x,z,damage,radius){const w=s.war;if(!w)return;for(const cover of w.cover||[])if(cover.hp>0){const d=distance(cover,{x,z});if(d<radius+cover.radius)hitWarCover(w,cover,damage*Math.max(.2,1-d/(radius+cover.radius)));}for(const enemy of w.enemyArmy)if(enemy.count>0){const d=distance(enemy,{x,z});if(d<radius+3)hitGroup(s,enemy,damage*Math.max(.12,1-d/(radius+3)));}for(const anchor of activeAnchors(w))if(distance(anchor,{x,z})<radius+7)hitAnchor(w,anchor,damage*.65);if(distance(w.enemyBase,{x,z})<radius+10)damageEnemyBase(w,damage*.5);if(w.expedition?.type==='spire'&&distance(w.expedition,{x,z})<radius+6)w.expedition.hp=Math.max(0,w.expedition.hp-damage*.65);}
 

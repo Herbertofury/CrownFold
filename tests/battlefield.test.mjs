@@ -86,3 +86,45 @@ test('headshots reward precision and briefly stagger responsive enemies',()=>{
  assert.ok(enemy.hp<enemy.maxHp-18);
  assert.ok(s.effects.some(e=>e.type==='weakpoint'));
 });
+
+test('a real player shot hits cover before an individual enemy and stops the tracer there',()=>{
+ const s=war(),c=s.war.cover[0];s.war.cover=[c];s.war.enemyArmy=[];s.enemies=[];
+ s.player.x=c.x;s.player.z=c.z+30;s.player.yaw=0;s.player.weapon='rail';
+ const e=spawnEnemy(s,'warden',c.x,c.z-22,{aggro:true});
+ const hp=e.hp,cover=c.hp;
+ shoot(s,{yaw:0,pitch:Math.atan2(e.y+1.15-(terrainHeight(s.player.x,s.player.z,s.seed,s.zone)+1.7),52)});
+ assert.equal(e.hp,hp);assert.ok(c.hp<cover);assert.equal(s.player.hit,1);
+ const tracer=s.effects.find(x=>x.type==='tracer');assert.ok(tracer.hit);assert.ok(tracer.toZ>c.z);
+});
+test('a nearer individual enemy absorbs a shot before cover and a battalion',()=>{
+ const s=war(),c=s.war.cover[0];s.war.cover=[c];s.enemies=[];
+ s.player.x=c.x;s.player.z=c.z+45;s.player.yaw=0;s.player.weapon='rail';
+ const enemy=spawnEnemy(s,'warden',c.x,c.z+25,{aggro:true});
+ const g=s.war.enemyArmy[0];g.x=c.x;g.z=c.z-25;
+ const groupCount=g.count,groupHp=g.hp,coverHp=c.hp;
+ const pitch=Math.atan2(enemy.y+1.15-(terrainHeight(s.player.x,s.player.z,s.seed,s.zone)+1.7),20);
+ shoot(s,{yaw:0,pitch});
+ assert.ok(enemy.hp<enemy.maxHp);assert.equal(c.hp,coverHp);assert.equal(g.hp,groupHp);assert.equal(g.count,groupCount);
+});
+test('the nearest war object is hit even when a farther battalion is in the same line',()=>{
+ const s=war(),w=s.war;w.cover=[];s.enemies=[];s.player.x=0;s.player.z=-60;s.player.weapon='rail';s.player.yaw=0;
+ const anchor=w.anchors[0];anchor.x=0;anchor.z=-85;const group=w.enemyArmy[0];group.x=0;group.z=-115;w.enemyArmy=[group];
+ const hp=anchor.hp,count=group.count,groupHp=group.hp;shoot(s,{yaw:0,pitch:0});
+ assert.ok(anchor.hp<hp);assert.equal(group.count,count);assert.equal(group.hp,groupHp);assert.equal(s.player.hit,1);
+});
+test('launcher explodes at the cover impact instead of a fixed distance beyond it',()=>{
+ const s=war(),c=s.war.cover[0];s.war.cover=[c];s.war.enemyArmy=[];s.enemies=[];
+ s.player.x=c.x;s.player.z=c.z+42;s.player.weapon='launcher';s.player.yaw=0;
+ shoot(s,{yaw:0,pitch:0});const blast=s.effects.find(e=>e.type==='explosion');
+ assert.ok(blast);assert.ok(Math.abs(blast.z-(c.z+c.radius))<2,JSON.stringify(blast));
+});
+test('shots aimed well above cover do not strike its battlefield footprint',()=>{
+ const s=war(),c=s.war.cover[0];s.war.cover=[c];s.war.enemyArmy=[];s.enemies=[];
+ s.player.x=c.x;s.player.z=c.z+32;s.player.weapon='rail';s.player.yaw=0;
+ const hp=c.hp;shoot(s,{yaw:0,pitch:.9});assert.equal(c.hp,hp);assert.equal(s.player.hit,0);
+});
+test('a target outside the equipped weapon range is not damaged',()=>{
+ const s=war(),w=s.war;w.cover=[];s.enemies=[];s.player.x=0;s.player.z=0;s.player.weapon='scatter';s.player.yaw=0;
+ const g=w.enemyArmy[0];g.x=0;g.z=-60;w.enemyArmy=[g];const before=g.hp,count=g.count;
+ shoot(s,{yaw:0,pitch:0});assert.equal(g.hp,before);assert.equal(g.count,count);
+});

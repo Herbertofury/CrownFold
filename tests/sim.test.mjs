@@ -44,3 +44,15 @@ test('malformed save is rejected without crashing',()=>{assert.equal(restore('ga
 test('clamp handles values above and below bounds',()=>{assert.equal(clamp(2,4,6),4);assert.equal(clamp(7,4,6),6);assert.equal(clamp(5,4,6),5);});
 
 test('mid-operation save repositions squad into frontier instead of trapping soldiers in the rift',()=>{const s=calm();s.player.x=64;s.player.z=-51;enterOperation(s,0);s.squad[0].x=222;s.squad[0].z=-133;const saved=restore(serialize(s));assert.equal(saved.zone,'frontier');assert.ok(saved.squad.length>0);assert.ok(Math.abs(saved.squad[0].x-64)<20);assert.ok(Math.abs(saved.squad[0].z+51)<20);});
+
+
+test('restoring a large frontier retains all valid saved structures and history',()=>{
+ const s=createGame(12345);
+ s.buildings=Array.from({length:501},(_,i)=>({kind:'turret',x:i,z:1,hp:20,zone:'frontier',era:'medieval'}));
+ s.harvested=Array.from({length:50001},(_,i)=>`harvest:${i}`);
+ s.cleared=Array.from({length:50001},(_,i)=>`cleared:${i}`);
+ const restored=restore(serialize(s));
+ assert.equal(restored.buildings.length,501);
+ assert.equal(restored.harvested.length,50001);
+ assert.equal(restored.cleared.length,50001);
+});
