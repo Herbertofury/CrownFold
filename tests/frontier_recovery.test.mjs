@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createGame,stepGame,terrainHeight,echo,serialize,restore} from '../src/sim.mjs';
+function defeated(){const s=createGame(1234);s.time=10;s.spawnTimer=999;s.player.x=500;s.player.z=500;s.player.y=900;s.player.vy=-80;s.player.hp=0;s.player.memories=[{at:5,x:490,z:500,hp:80,shield:10}];return s;}
+test('frontier recovery returns grounded with no inherited falling velocity',()=>{const s=defeated();stepGame(s,{},.01);assert.equal(s.player.x,0);assert.equal(s.player.z,0);assert.equal(s.player.y,terrainHeight(0,0,s.seed,'frontier'));assert.equal(s.player.vy,0);assert.equal(s.stats.death,1);});
+test('recovery cannot Echo back into the fatal encounter or spend Flux trying',()=>{const s=defeated();stepGame(s,{},.01);const flux=s.inventory.flux;assert.equal(echo(s),false);assert.equal(s.inventory.flux,flux);assert.deepEqual(s.player.memories,[]);});
+test('recovery preserves earned progress and charges only available scrap once',()=>{const s=defeated();s.inventory.scrap=7;s.rpg.coins=431;s.rpg.quests.first_light={status:'ready',progress:8};stepGame(s,{},.01);assert.equal(s.inventory.scrap,0);assert.equal(s.rpg.coins,431);assert.equal(s.rpg.quests.first_light.status,'ready');assert.ok(s.messages.some(m=>m.text?.includes('7 SCRAP LOST')));stepGame(s,{},.01);assert.equal(s.stats.death,1);const loaded=restore(serialize(s));assert.equal(loaded.stats.death,1);assert.equal(loaded.rpg.coins,431);assert.equal(loaded.inventory.scrap,0);assert.equal(loaded.player.x,0);});
