@@ -49,7 +49,7 @@ $('save-button').onclick=()=>{const saved=safeSave();toast(saved?'FRONTIER PROGR
 $('quality-button').onclick=()=>{quality=quality==='high'?'standard':'high';renderer?.dispose();renderer=new WorldRenderer(canvas,quality);$('quality-button').textContent=`QUALITY: ${quality.toUpperCase()}`;toast('RENDERER QUALITY UPDATED');};
 function syncAudio(userGesture=false){
  if(userGesture&&settings.soundEnabled&&!audio){try{audio=new(window.AudioContext||window.webkitAudioContext)();masterGain=audio.createGain();masterGain.connect(audio.destination);}catch{audio=null;masterGain=null;toast('SOUND NOT AVAILABLE','warning');}}
- if(masterGain){masterGain.gain.setValueAtTime(masterVolume(settings),audio.currentTime);if(userGesture&&settings.soundEnabled)audio.resume().catch(()=>toast('SOUND NOT AVAILABLE','warning'));}
+ if(masterGain){masterGain.gain.cancelScheduledValues(0);masterGain.gain.value=masterVolume(settings);if(userGesture&&settings.soundEnabled)audio.resume().catch(()=>toast('SOUND NOT AVAILABLE','warning'));}
  $('sound-button').textContent=settings.soundEnabled?'♫ SOUND ON':'♫ SOUND OFF';$('sound-button').setAttribute('aria-pressed',String(settings.soundEnabled));
 }
 function refreshSettings(){
