@@ -38,6 +38,14 @@ The offline build embeds the Rust module and requires no installation. Its foote
 | B / N / H / J / K | Build menu / recruit / heal / rations / water |
 | ESC | Pause / close an RPG panel / exit dialogue |
 
+## Player comfort settings
+
+Open **Settings** on the title screen or **Player Settings** from the pause menu. Adjust mouse sensitivity (0.25–3×), invert vertical aim, and choose a master volume or mute. **Reduce HUD flashes and motion** removes the red damage overlay, scanlines and interface animation; world combat effects remain visible. Its initial value follows your system reduced-motion preference.
+
+Changes apply immediately and persist on this browser, separately from both campaign saves. Resetting settings never resets progress. If browser storage is blocked, settings still work for the session and the panel explains that they could not be saved. Sound starts only after a player gesture. Native keyboard controls work on the title, pause menu and settings dialog; Escape or Done returns to the opening menu without resuming combat.
+
+This is an initial comfort pass, not complete accessibility support, key rebinding or controller support. Browser audio gain is testable, but listening on actual speakers/headphones remains a human check.
+
 ## The Great Entanglement
 
 In 2086, the public demonstration at the Meridian Exchange had a strange side effect: when the engine opened, every era discovered it had doorways to the others. There was **no warhead, no apocalypse, no global destruction**. The kingdoms were intact. So were their enemies, unborn descendants and future claimants. Money, borders, citizenship, physics and causality became negotiable. Every power wants to write the history that benefits it, including the people history forgot.
