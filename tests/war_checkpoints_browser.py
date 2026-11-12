@@ -63,7 +63,7 @@ with sync_playwright() as pw:
  context=browser.new_context();page=context.new_page();page.goto(URL);page.wait_for_function('window.__riftfront?.renderer')
  page.locator('#quick-war').click();page.evaluate('document.exitPointerLock()');page.wait_for_timeout(100);page.locator('#pause-button').click()
  previous=page.evaluate(f'localStorage.getItem({json.dumps(KEY)})')
- page.evaluate("Storage.prototype.setItem=function(){throw new Error('Quota exceeded')}")
+ page.evaluate("()=>{Storage.prototype.setItem=function(){throw new Error('Quota exceeded')}}")
  page.locator('#save-button').click();checks['failed_save_visible']='PREVIOUS SAVE KEPT' in page.locator('#notifications').inner_text()
  page.once('dialog',lambda dialog:dialog.dismiss());page.locator('#back-menu').click()
  checks['failed_return_cancel_stays_in_game']=page.evaluate('window.__riftfront.active && window.__riftfront.paused')
