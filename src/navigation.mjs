@@ -31,7 +31,7 @@ export function frontierGuidance(s){
  }else if(type==='discover'){
   point=nearest(s,LANDMARKS.filter(l=>!s.rpg.discovered.includes(l.id)&&(kind==='any'||l.id===kind)));hint=point?'Approach the marked landmark to discover it.':'Explore the frontier for undiscovered landmarks.';
  }else if(type==='dungeon'){
-  point=nearest(s,LANDMARKS.filter(l=>l.kind==='dungeon'&&(kind==='any'?!state.unique?.includes(l.id):l.id===kind)));hint='Enter the marked vault, defeat its guardian and claim the relic.';
+  point=nearest(s,LANDMARKS.filter(l=>l.kind==='dungeon'&&!s.rpg.dungeonCleared.includes(l.id)&&(kind==='any'?!state.unique?.includes(l.id):l.id===kind)));hint=point?'Enter the marked vault, defeat its guardian and claim the relic.':'No uncleared vault remains for this quest. Previously cleared vaults do not count again.';
  }else if(type==='chest'){
   point=nearest(s,LANDMARKS.filter(l=>l.kind==='cache'&&!s.rpg.opened.includes(`world:${l.id}`)));hint=point?'Open the marked cache with E.':'Seek unopened dungeon relic caches.';
  }else if(type==='operation'){
@@ -40,10 +40,11 @@ export function frontierGuidance(s){
  else if(type==='craft')hint='Press I, choose Craft, and make recipes with your supplies.';
  return result(target(point,type==='harvest'?`HARVEST ${kind.toUpperCase()}`:type==='kill'?`HUNT ${kind.toUpperCase()}`:point?.name||quest.name),hint);
 }
-export function markerPlacement(player,goal,project,width,height){
- const cx=width/2,cy=height/2,marginX=Math.min(140,width*.28),marginY=Math.min(145,height*.28);
- const rx=Math.max(1,cx-marginX),ry=Math.max(1,cy-marginY);
- if(project&&Number.isFinite(project.x)&&Number.isFinite(project.y)&&Math.abs(project.x-cx)<=rx&&Math.abs(project.y-cy)<=ry)return{x:project.x,y:project.y,icon:'◆',direction:'',offscreen:false};
+export function markerPlacement(player,goal,project,width,height,bounds=null){
+ const marginX=Math.min(140,width*.28),marginY=Math.min(145,height*.28);
+ const left=bounds?.left??marginX,right=bounds?.right??width-marginX,top=bounds?.top??marginY,bottom=bounds?.bottom??height-marginY;
+ const cx=(left+right)/2,cy=(top+bottom)/2,rx=Math.max(1,(right-left)/2),ry=Math.max(1,(bottom-top)/2);
+ if(project&&Number.isFinite(project.x)&&Number.isFinite(project.y)&&project.x>=left&&project.x<=right&&project.y>=top&&project.y<=bottom)return{x:project.x,y:project.y,icon:'◆',direction:'',offscreen:false};
  let dx,dy,direction;
  if(project&&Number.isFinite(project.x)&&Number.isFinite(project.y)){
   dx=project.x-cx;dy=project.y-cy;

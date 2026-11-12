@@ -1,7 +1,7 @@
 import {frontierGuidance,guidanceQuest,markerPlacement} from './navigation.mjs';
 import {tacticalRuntime} from './battlefield.mjs';
 import {createGame,restore,serialize,stepGame,WEAPONS,STRUCTURES,CONTRACTS,clamp,fmtTime,dist,terrainHeight,biomeAt,worldGates,nearestInteraction,interact,enterOperation,finishOperation,addBuilding,recruit,issueOrder,fold,echo,grenade,orbital,resupply,reload,setWeapon,useConsumable,castAbility,dodge,sleepAtCamp} from './sim.mjs';
-import {NPCS,NPC_BY_ID,LANDMARKS,DUNGEON_BY_ID,FACTIONS,PERKS,ABILITIES,QUESTS,QUEST_BY_ID,RECIPES,GOODS,RARITIES,perkRank,rpgStat,buyPerk,equipGear,salvageGear,craft,fastTravel,activeQuest,dialogueOptions,dialogueChoice,buyGood,startBounty,claimBounty,generateBounty,LOCKBOXES,attemptLock} from './rpg.mjs';
+import {NPCS,NPC_BY_ID,LANDMARKS,DUNGEON_BY_ID,FACTIONS,PERKS,ABILITIES,QUESTS,QUEST_BY_ID,RECIPES,GOODS,RARITIES,perkRank,rpgStat,buyPerk,equipGear,salvageGear,craft,fastTravel,dialogueOptions,dialogueChoice,buyGood,startBounty,claimBounty,generateBounty,LOCKBOXES,attemptLock} from './rpg.mjs';
 import {WorldRenderer} from './render.mjs';
 import {ERAS,ERA_ORDER,CHRONICLE,availableRifts,eraSites,spendInsight} from './temporal.mjs';
 import {COMMANDER_HERITAGES,LOST_TECH,MAX_WEAVE_SLOTS,WAR_POWERS,WEAVE_SYNERGIES,setCommanderHeritage,researchLostTech,lostTechCost,equipLostTech,equippedTech,activeWeaves} from './lineage.mjs';
@@ -325,6 +325,17 @@ window.addEventListener('mousemove',e=>{
 });
 canvas.addEventListener('wheel',e=>{if(commander){e.preventDefault();renderer.tactical.zoom=clamp(renderer.tactical.zoom+(e.deltaY>0?10:-10),45,132);return;}if(active&&!paused&&!rpgMenu&&!dialogue&&!lockMenu&&!help&&!buildMenu){e.preventDefault();const all=Object.keys(WEAPONS),idx=all.indexOf(s.player.weapon);setWeapon(s,all[(idx+(e.deltaY>0?1:all.length-1))%all.length]);sound('notification');}},{passive:false});
 function updateInput(){input.x=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);input.z=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0);input.jump=keys.has('Space');input.sprint=keys.has('ShiftLeft')||keys.has('ShiftRight');input.crouch=keys.has('ControlLeft')||keys.has('ControlRight');input.commander=commander; if(active)s.player.pitch=input.pitch;}
+function markerBounds(){
+ const w=window.innerWidth,h=window.innerHeight,half=Math.min(240,w*.56)/2+16;
+ const visibleRect=selector=>{const element=document.querySelector(selector);return element?.getClientRects().length?element.getBoundingClientRect():null;};
+ const leftPanel=visibleRect('.left-panel'),rightPanel=visibleRect('.right-panel'),header=visibleRect('.topbar');
+ let left=leftPanel?leftPanel.right+half:half,right=rightPanel?rightPanel.left-half:w-half;
+ if(right-left<80){left=half;right=w-half;}
+ const top=Math.min(h*.3,(header?.bottom||70)+55);
+ let bottom=h-65;for(const selector of ['#ability-strip','.bottom-hud']){const rect=visibleRect(selector);if(rect)bottom=Math.min(bottom,rect.top-55);}
+ bottom=Math.max(top+40,bottom);
+ return {left,right,top,bottom:Math.min(h-45,bottom)};
+}
 function refresh(force=false){if(!renderer||!active)return;
  const p=s.player,op=s.operation,o=op?.objectives[op.stage],warGoal=s.war?warObjective(s.war):null,frontier=frontierGuidance(s);
  const set=(id,v)=>{const el=$(id);if(el&&el.textContent!==String(v))el.textContent=String(v);};const progress=(id,v)=>{$(id).style.width=`${clamp(v,0,1)*100}%`;};
@@ -348,7 +359,7 @@ function refresh(force=false){if(!renderer||!active)return;
  const sortieGoal=trackedWarSortie&&trackedWarSortie===s.war?.expedition?trackedWarSortie:null;
  const goal=sortieGoal||warGoal||(op?o:s.dungeon?(s.dungeon.looted?{x:-12,z:6}:!s.dungeon.sigils[0]?{x:-11,z:-43}:!s.dungeon.sigils[1]?{x:12,z:-83}:s.dungeon.bossDead?{x:7,z:-137}:{x:0,z:-129}):frontier?.goal);
  setVisibility('objective-marker',!!goal);
- if(goal){const y=terrainHeight(goal.x,goal.z,s.seed,s.zone)+10,project=renderer.project([goal.x,y,goal.z]);const marker=$('objective-marker'),placement=markerPlacement(p,goal,project,window.innerWidth,window.innerHeight);
+ if(goal){const y=terrainHeight(goal.x,goal.z,s.seed,s.zone)+10,project=renderer.project([goal.x,y,goal.z]);const marker=$('objective-marker'),placement=markerPlacement(p,goal,project,window.innerWidth,window.innerHeight,markerBounds());
   set('marker-title',sortieGoal?`OPTIONAL / ${warSummary(s.war).expedition.name}`:warGoal?warGoal.name:op?'OPERATION TARGET':s.dungeon?'VAULT OBJECTIVE':goal.title);
   set('marker-icon',placement.icon);set('marker-distance',`${Math.round(dist(p,goal))}m${placement.direction?' · '+placement.direction:''}`);
   marker.classList.toggle('offscreen',placement.offscreen);marker.style.left=`${placement.x}px`;marker.style.top=`${placement.y}px`;

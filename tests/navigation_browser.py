@@ -57,9 +57,11 @@ with sync_playwright() as pw:
    # Aim north while the vault lies due south, including the real mouse input.
    page.evaluate("window.dispatchEvent(new MouseEvent('mousemove',{movementX:-window.__riftfront.state.player.yaw/.0024,movementY:0,buttons:2}))")
    expect(page.locator('#marker-distance')).to_contain_text('BEHIND');expect(page.locator('#marker-icon')).to_have_text('↓');checks[mode+'_behind_camera_arrow']=True
+   checks[mode+'_desktop_marker_clears_hotbar']=page.evaluate("""()=>{const m=document.querySelector('#objective-marker').getBoundingClientRect();return ['#ability-strip','.bottom-hud','.left-panel','.right-panel'].every(selector=>{const el=document.querySelector(selector);if(!el.getClientRects().length)return true;const b=el.getBoundingClientRect();return m.right<=b.left||m.left>=b.right||m.bottom<=b.top||m.top>=b.bottom;})}""")
    page.screenshot(path=str(OUT/f'wayfinding-{mode}-desktop.png'))
    page.set_viewport_size({'width':520,'height':640});page.wait_for_timeout(250)
    box=page.locator('#objective-marker').bounding_box();checks[mode+'_small_screen_marker_fits']=box['x']>=0 and box['y']>=0 and box['x']+box['width']<=520 and box['y']+box['height']<=640
+   checks[mode+'_small_marker_clears_hotbar']=page.evaluate("""()=>{const m=document.querySelector('#objective-marker').getBoundingClientRect();return ['#ability-strip','.bottom-hud'].every(selector=>m.bottom<document.querySelector(selector).getBoundingClientRect().top)}""")
    page.screenshot(path=str(OUT/f'wayfinding-{mode}-small.png'))
    page.set_viewport_size({'width':1440,'height':1000})
    page.evaluate('window.__riftfront.sim.enterOperation(window.__riftfront.state,3)')
@@ -70,4 +72,4 @@ with sync_playwright() as pw:
  finally:browser.close()
 result={'checks':checks,'errors':errors,'scope':'Served and offline controls with deterministic position fixtures; no pacing, art or AAA completion claim.'}
 (OUT/'navigation-browser.json').write_text(json.dumps(result,indent=2));print(json.dumps(result,indent=2))
-assert len(checks)==20 and all(checks.values()) and not errors,'Wayfinding browser regression'
+assert len(checks)==24 and all(checks.values()) and not errors,'Wayfinding browser regression'

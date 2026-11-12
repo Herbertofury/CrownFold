@@ -54,3 +54,14 @@ test('offscreen placement stays in safe bounds for small and wide screens',()=>{
   const p=markerPlacement({x:0,z:0,yaw:0},{x:0,z:50},project,width,height);assert.ok(Number.isFinite(p.x)&&Number.isFinite(p.y));assert.ok(p.x>=0&&p.x<=width);assert.ok(p.y>=0&&p.y<=height);assert.ok(p.offscreen);
  }
 });
+
+test('quests accepted after an earlier vault clear guide only to eligible new clears',()=>{
+ const s=game();s.rpg.dungeonCleared=['glass'];takeQuest(s,'relic_hunter');s.player.x=-43;s.player.z=-54;
+ assert.notEqual(frontierGuidance(s).goal.title,'THE MIRROR MAW');
+ s.rpg.dungeonCleared=['glass','roots','archive'];assert.equal(frontierGuidance(s).goal,null);assert.match(frontierGuidance(s).hint,/Previously cleared vaults do not count/);
+ takeQuest(s,'the_glass_key');assert.equal(frontierGuidance(s).goal,null);
+});
+test('HUD safe bounds keep directional markers out of occupied side and bottom panels',()=>{
+ const bounds={left:435,right:1000,top:140,bottom:730};
+ for(const goal of [{x:0,z:20},{x:-20,z:0},{x:20,z:0}]){const p=markerPlacement({x:0,z:0,yaw:0},goal,null,1440,1000,bounds);assert.ok(p.x>=bounds.left&&p.x<=bounds.right);assert.ok(p.y>=bounds.top&&p.y<=bounds.bottom);}
+});
