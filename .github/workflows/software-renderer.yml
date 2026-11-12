@@ -1,0 +1,32 @@
+name: CrownFold software renderer
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  software-renderer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax, regression suite and offline artifact
+        run: |
+          npm run check
+          npm test
+          npm run build
+          git diff --exit-code -- dist/
+      - name: Install browser harness
+        run: |
+          python -m pip install playwright==1.62.0
+          python -m playwright install --with-deps chromium
+      - name: Real Canvas 2D tactical rendering
+        run: python tests/software_renderer_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: crownfold-software-renderer-evidence
+          path: test-results/
