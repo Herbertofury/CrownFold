@@ -1,16 +1,24 @@
 """Play the actual offline arsenal UI. No accounts, network, or external services."""
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import json, os, traceback
+import json, os, traceback, time
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'test-results';OUT.mkdir(exist_ok=True)
 checks={};errors=[]
 URL=os.environ.get('CROWNFOLD_URL',(ROOT/'dist/CROWNFOLD-RIFTFRONT.html').as_uri())
 
+def wait_state(page, expression, timeout=7000):
+ # Poll through the test protocol; do not use page-side eval or relax served CSP.
+ deadline=time.monotonic()+timeout/1000
+ while time.monotonic()<deadline:
+  if page.evaluate(expression):return
+  page.wait_for_timeout(50)
+ raise AssertionError('Timed out waiting for '+expression)
+
 def open_arsenal(page):
  page.evaluate('document.exitPointerLock()')
  page.keyboard.press('Backquote')
- page.wait_for_function('document.querySelector("#arsenal-dialog").open')
+ wait_state(page,'document.querySelector("#arsenal-dialog").open')
 
 def state(page):
  return page.evaluate('({time:window.__riftfront.state.time,weapon:window.__riftfront.state.player.weapon,ammo:{...window.__riftfront.state.player.ammo},hp:window.__riftfront.state.player.hp,x:window.__riftfront.state.player.x,z:window.__riftfront.state.player.z,shots:window.__riftfront.state.player.shots,flux:window.__riftfront.state.inventory.flux})')
@@ -22,18 +30,18 @@ with sync_playwright() as pw:
  try:
   page=browser.new_page(viewport={'width':1440,'height':1000});page.set_default_timeout(7000)
   page.on('pageerror',lambda e:errors.append(str(e)))
-  page.goto(URL,wait_until='domcontentloaded');page.wait_for_function('window.__riftfront && window.__riftfront.renderer')
+  page.goto(URL,wait_until='domcontentloaded');wait_state(page,'window.__riftfront && window.__riftfront.renderer')
   checks['rust_runtime_preserved']=page.evaluate('window.__riftfront.tactics.backend')=='rust-wasm'
-  page.locator('#new-game').click();page.wait_for_function('window.__riftfront.active');open_arsenal(page)
+  page.locator('#new-game').click();wait_state(page,'window.__riftfront.active');open_arsenal(page)
   checks['all_six_roles_visible']=page.locator('.arsenal-card').count()==6 and page.locator('[data-weapon="cryo"]').is_visible()
   checks['opens_on_equipped_weapon']=page.evaluate('document.activeElement.dataset.weapon')=='rifle'
   before=state(page);page.keyboard.press('w');page.keyboard.press('4');page.keyboard.press('g');page.wait_for_timeout(250)
   checks['inspection_freezes_combat_and_inputs']=state(page)==before
   checks['number_selects_without_equipping']=page.evaluate('document.querySelector(".arsenal-card[aria-pressed=true]").dataset.weapon')=='smg' and state(page)['weapon']=='rifle'
   page.screenshot(path=str(OUT/'arsenal-desktop.png'))
-  page.keyboard.press('Escape');page.wait_for_function('!document.querySelector("#arsenal-dialog").open')
+  page.keyboard.press('Escape');wait_state(page,'!document.querySelector("#arsenal-dialog").open')
   checks['escape_cancel_keeps_weapon']=state(page)['weapon']=='rifle'
-  open_arsenal(page);page.keyboard.press('6');page.keyboard.press('Enter');page.wait_for_function('window.__riftfront.state.player.weapon==="launcher"')
+  open_arsenal(page);page.keyboard.press('6');page.keyboard.press('Enter');wait_state(page,'window.__riftfront.state.player.weapon==="launcher"')
   checks['keyboard_equips_launcher']=not page.locator('#arsenal-dialog').is_visible()
   open_arsenal(page);page.locator('[data-weapon="cryo"]').click()
   checks['click_previews_without_committing']=state(page)['weapon']=='launcher'
@@ -42,11 +50,11 @@ with sync_playwright() as pw:
   checks['mouse_equips_cryo']=state(page)['weapon']=='cryo'
   # A real fire input changes ammo; then real reload input drives the HUD meter.
   page.evaluate('document.exitPointerLock()');page.mouse.move(710,490);page.mouse.down();page.wait_for_timeout(100);page.mouse.up()
-  page.keyboard.press('r');page.wait_for_function('window.__riftfront.state.player.reload>0');page.locator('#reload-meter').wait_for(state='visible')
+  page.keyboard.press('r');wait_state(page,'window.__riftfront.state.player.reload>0');page.locator('#reload-meter').wait_for(state='visible')
   checks['reload_hud_visible']=page.locator('#reload-meter').is_visible() and 'RELOADING' in page.locator('#reload-status').inner_text()
   open_arsenal(page);remaining=page.evaluate('window.__riftfront.state.player.reload');page.wait_for_timeout(200)
   checks['arsenal_freezes_reload']=page.evaluate('window.__riftfront.state.player.reload')==remaining
-  page.keyboard.press('Enter');page.wait_for_function('window.__riftfront.state.player.reload<=0')
+  page.keyboard.press('Enter');wait_state(page,'window.__riftfront.state.player.reload<=0')
   checks['keep_weapon_finishes_reload']=page.evaluate('window.__riftfront.state.player.ammo.cryo')==24
   # Save compatibility uses existing UI; arsenal has no private save format.
   page.evaluate('document.exitPointerLock()');page.locator('#pause-button').click();page.locator('#save-button').click()
@@ -59,11 +67,11 @@ with sync_playwright() as pw:
   open_arsenal(page);page.locator('#arsenal-equip').focus();page.keyboard.press('Tab')
   checks['tab_wraps_forward']=page.evaluate('document.activeElement.dataset.weapon')=='rifle'
   page.keyboard.press('Shift+Tab');checks['tab_wraps_backward']=page.evaluate('document.activeElement.id')=='arsenal-equip'
-  page.keyboard.press('Backquote');page.wait_for_function('!document.querySelector("#arsenal-dialog").open')
+  page.keyboard.press('Backquote');wait_state(page,'!document.querySelector("#arsenal-dialog").open')
   # RTS retains its original backtick compact-console action.
-  page.keyboard.press('Tab');page.wait_for_function('window.__riftfront.commander');page.keyboard.press('Backquote')
+  page.keyboard.press('Tab');wait_state(page,'window.__riftfront.commander');page.keyboard.press('Backquote')
   checks['rts_shortcut_unchanged']=page.evaluate('document.body.classList.contains("command-compact")') and not page.locator('#arsenal-dialog').is_visible()
-  page.keyboard.press('Tab');page.wait_for_function('!window.__riftfront.commander')
+  page.keyboard.press('Tab');wait_state(page,'!window.__riftfront.commander')
   # Explicitly inspect limited-ammo messaging and all short-screen cards/controls.
   page.evaluate('window.__riftfront.state.player.ammo.launcher=0;window.__riftfront.state.player.reserve.launcher=0')
   open_arsenal(page);checks['empty_weapon_explained']='OUT OF AMMO' in page.locator('[data-weapon="launcher"]').inner_text()
@@ -75,10 +83,10 @@ with sync_playwright() as pw:
   page.keyboard.press('Escape');page.set_viewport_size({'width':1440,'height':1000})
   # Start actual War Rift and verify its clock also stops while reading the arsenal.
   page.evaluate('document.exitPointerLock()');page.locator('#pause-button').click();page.locator('#back-menu').click();page.locator('#quick-war').click()
-  page.wait_for_function('window.__riftfront.state.war');open_arsenal(page)
+  wait_state(page,'window.__riftfront.state.war');open_arsenal(page)
   time_left=page.evaluate('window.__riftfront.state.operation.timeLeft');page.wait_for_timeout(250)
   checks['war_mission_clock_pauses']=time_left==page.evaluate('window.__riftfront.state.operation.timeLeft')
-  page.keyboard.press('6');page.keyboard.press('Enter');page.wait_for_function('window.__riftfront.state.operation.timeLeft<'+str(time_left))
+  page.keyboard.press('6');page.keyboard.press('Enter');wait_state(page,'window.__riftfront.state.operation.timeLeft<'+str(time_left))
   checks['war_resumes_with_selected_weapon']=state(page)['weapon']=='launcher'
  except Exception as exc:
   errors.append(repr(exc)+'\n'+traceback.format_exc(limit=8))
