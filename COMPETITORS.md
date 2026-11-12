@@ -29,3 +29,28 @@ During each daily review, check linked official release notes/issues and update 
 ## Review log
 
 - 2026-11-12: initial repository-scoped comparison index; official sources reviewed at documentation level. No gameplay, performance or compatibility tests run in this pass. No implementation or native GitHub Wiki publication claimed.
+
+## Candidate foundations, concrete reuse and shared work
+
+| Candidate | Exact useful technique / build-on boundary | Improvement experiment |
+|---|---|---|
+| Existing `rust/crownfold-tactics` and offline web runtime | Preserve current native/Wasm tactical geometry, JS fallback, saves and offline packaging. This is the default foundation, not a disposable prototype. | Capture an identical battlefield/seed/save and assess correctness plus end-to-end input/frame latency before replacing any subsystem. |
+| [three.js](https://github.com/mrdoob/three.js) | Candidate browser renderer infrastructure and scene/resource management, not a full game rewrite. Evaluate only against the actual current renderer. | Isolate one representative battlefield with the same formations, materials, camera and fallback requirements; compare cold load, interaction latency, memory and offline completeness. |
+| [wgpu](https://github.com/gfx-rs/wgpu) | Candidate Rust graphics abstraction if a future Rust renderer solves a measured limitation. It does not by itself supply gameplay, UI or save migration. | Keep a separate renderer experiment; check device support, browser/native targets, startup cost and shader failure behavior before choosing it. |
+
+**Licensing evidence checked:** three.js [MIT license](https://github.com/mrdoob/three.js/blob/dev/LICENSE) blob `8ada2a5f982916b0ba4b7a0aa7de347587e745d7`; wgpu [MIT option](https://github.com/gfx-rs/wgpu/blob/trunk/LICENSE.MIT) blob `709e6b7fd4d7ba60826365d30f7fdc164dc8f6cd`. Audit exact packages and example assets independently. Commercial game comparisons do not authorize copying their assets or UI.
+
+### Shared-work proposals
+
+- Engineering Atlas can retain the rendering experiment protocol and raw comparison evidence. Do not recommend a framework in another project merely because this prototype likes it.
+- Hover's future asset-preview work could share original camera-control/accessibility test scenarios and explicitly licensed format fixtures, not game-specific simulation or private assets.
+- Keep save envelopes/version migrations project-owned. A shared interruption/rollback test format is more appropriate than a global save format forced onto unrelated applications.
+
+- [ ] Measure the current renderer first; admit only the smallest candidate that addresses a reproduced bottleneck.
+- [ ] Preserve offline and fallback acceptance throughout any experiment.
+
+### Reuse admission gates
+
+These are **candidate foundations and experiments**, not selected dependencies or measured improvements. Before reuse: pin the exact version/commit and loader; inspect its source and dependency tree; record code, asset, trademark and redistribution terms separately; keep required notices; verify permission where terms are restrictive or unclear. Public visibility is not a license. A current default-branch license is evidence for that snapshot, not every historical release. Prefer an upstream dependency/API or a small original adapter over a fork when it preserves compatibility. Do not copy proprietary game assets or publish private fixtures.
+
+For every admitted experiment retain baseline and candidate artifacts, representative native workloads, correctness/feature parity, cold/warm latency, p95 frame/tick time, memory, interrupted-save/recovery evidence and rollback. Promote only after the actual target improves without losing requirements. Cross-project sharing below is an interface proposal, not permission to change another project's implementation or declare integration complete.
