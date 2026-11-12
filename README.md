@@ -46,6 +46,12 @@ Changes apply immediately and persist on this browser, separately from both camp
 
 This is an initial comfort pass, not complete accessibility support, key rebinding or controller support. Browser audio gain is testable, but listening on actual speakers/headphones remains a human check.
 
+## Quest wayfinding
+
+New frontier players are guided to Mira Vale for their first quest. Press **L** to track an active or ready quest. Its marker leads to remaining harvest resources, living enemies, unopened caches, undiscovered landmarks or the required vault. Finished quests keep pointing to their giver until you claim the reward. In another era, the guide points to the return rift instead of reusing medieval coordinates.
+
+Build and craft tasks show the relevant controls, and searches with no local target explain what to find instead of pointing at an unrelated gate. Offscreen arrows show where to turn, including targets behind you; the minimap highlights the current destination. These markers are guidance, not obstacle-aware travel routes. War and dungeon objectives keep their existing priority. Tracking uses existing saves without a format change.
+
 ## The Great Entanglement
 
 In 2086, the public demonstration at the Meridian Exchange had a strange side effect: when the engine opened, every era discovered it had doorways to the others. There was **no warhead, no apocalypse, no global destruction**. The kingdoms were intact. So were their enemies, unborn descendants and future claimants. Money, borders, citizenship, physics and causality became negotiable. Every power wants to write the history that benefits it, including the people history forgot.
