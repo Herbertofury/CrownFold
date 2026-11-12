@@ -14,6 +14,10 @@
     "check": "node scripts/check.mjs",
     "test": "node --test tests/*.test.mjs",
     "build": "node scripts/build.mjs",
-    "benchmark": "node scripts/benchmark.mjs"
+    "benchmark": "node scripts/benchmark.mjs",
+    "build:rust": "node scripts/build-rust.mjs",
+    "check:rust": "node scripts/build-rust.mjs --check",
+    "test:rust": "cargo test --manifest-path rust/Cargo.toml --locked",
+    "verify": "npm run check && npm test && npm run build"
   }
 }

@@ -17,7 +17,7 @@ The project is simply **CrownFold**, with seven successive development milestone
 
 ## Actual architecture (running code)
 
-The vertical slice uses **dependency-free JavaScript modules**, deterministic fixed-step-ish simulation updates, procedural 3D generated through WebGL2 with a software fallback, a CSS/DOM HUD, browser-local save storage, and an offline bundler that embeds all source modules into a standalone HTML file. It does not yet use Unreal, Godot or Unity. `src/temporal.mjs` owns era rules, `src/war.mjs` owns economic war simulation, `src/sim.mjs` connects shooter and world state, `src/rpg.mjs` owns quest and player records, `src/render.mjs` draws the world, and `src/game.mjs` owns browser input and HUD.
+The vertical slice uses a **dependency-free Rust tactical kernel compiled to WebAssembly**, JavaScript gameplay/presentation modules, deterministic fixed-step-ish simulation updates, procedural 3D generated through WebGL2 with a software fallback, a CSS/DOM HUD, browser-local save storage, and an offline bundler that embeds all source modules into a standalone HTML file. It does not yet use Unreal, Godot or Unity. `src/temporal.mjs` owns era rules, `src/war.mjs` owns economic war simulation, `src/sim.mjs` connects shooter and world state, `src/rpg.mjs` owns quest and player records, `src/render.mjs` draws the world, and `src/game.mjs` owns browser input and HUD.
 
 Run `npm test`, `npm run check`, and `npm run build` on Node.js 22+. `tests/chronicle_browser.py` exercises actual travel into a new era, dialogue, Fold, war production, win and return in Chromium/Playwright. `tests/rpg_browser.py` exercises previous v0.3 RPG interaction flows.
 
@@ -39,7 +39,7 @@ Run `npm test`, `npm run check`, and `npm run build` on Node.js 22+. `tests/chro
 
 ## Native AAA production target — architectural proposal, not shipped
 
-A future native production is most naturally prototyped in **Unreal Engine 5.8** (version should be reverified before adoption), with World Partition for streaming, PCG for distribution, Nanite for geometry, Lumen for lighting subject to perf budget, gameplay ability architecture for Fold/Echo and combat, Mass Entity or an equivalent data-oriented representation for large soldier counts, async navmesh updates for battlefield rotation, authoritative server simulation and replication, and functional data-driven world-state/save migrations. These are *candidates*, not claims that the systems have been implemented in Unreal or benchmarked here.
+The current direction is **Rust-first**, superseding the earlier Unreal recommendation. The running browser game already uses a native-buildable Rust tactics crate for formation routes and cover queries. The remaining simulation, UI and renderer are not yet ported. Evaluate a Rust-native engine/ECS and renderer on a representative battlefield before selecting production tooling. See [the current Rust architecture](../docs/TECH_STACK_2026.md) for implemented boundaries, measured CPU results and acceptance gates.
 
 ### Engineering priorities
 

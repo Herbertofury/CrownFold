@@ -1,12 +1,16 @@
+import {tacticalRuntime} from './battlefield.mjs';
 import {createGame,restore,serialize,stepGame,WEAPONS,STRUCTURES,CONTRACTS,clamp,fmtTime,dist,terrainHeight,biomeAt,worldGates,nearestInteraction,interact,enterOperation,finishOperation,addBuilding,recruit,issueOrder,fold,echo,grenade,orbital,resupply,reload,setWeapon,useConsumable,castAbility,dodge,sleepAtCamp} from './sim.mjs';
 import {NPCS,NPC_BY_ID,LANDMARKS,DUNGEON_BY_ID,FACTIONS,PERKS,ABILITIES,QUESTS,QUEST_BY_ID,RECIPES,GOODS,RARITIES,perkRank,rpgStat,buyPerk,equipGear,salvageGear,craft,fastTravel,activeQuest,dialogueOptions,dialogueChoice,buyGood,startBounty,claimBounty,generateBounty,LOCKBOXES,attemptLock} from './rpg.mjs';
 import {WorldRenderer} from './render.mjs';
 import {ERAS,ERA_ORDER,CHRONICLE,availableRifts,eraSites,spendInsight} from './temporal.mjs';
 import {COMMANDER_HERITAGES,LOST_TECH,MAX_WEAVE_SLOTS,WAR_POWERS,WEAVE_SYNERGIES,setCommanderHeritage,researchLostTech,lostTechCost,equipLostTech,equippedTech,activeWeaves} from './lineage.mjs';
-import {BATTALIONS,WAR_BUILDINGS,WAR_CAMPAIGNS,WAR_STANCES,WAR_EXPEDITIONS,WAR_SUPPORT,trainBattalion,constructWarBuilding,warSummary,selectWarBattalion,selectWarBattalions,setWarControlGroup,recallWarControlGroup,setWarStance,warCastPower,callWarSupport,signalWarExtraction,canSignalWarExtraction,warObjective} from './war.mjs';
+import {BATTALIONS,WAR_BUILDINGS,WAR_CAMPAIGNS,WAR_STANCES,WAR_SUPPORT,trainBattalion,constructWarBuilding,warSummary,selectWarBattalion,selectWarBattalions,setWarControlGroup,recallWarControlGroup,setWarStance,warCastPower,callWarSupport,signalWarExtraction,canSignalWarExtraction,warObjective,skipWarSortie} from './war.mjs';
 import {selectEpoch} from './sim.mjs';
 import {DEFAULT_SETTINGS,loadSettings,saveSettings,normalizeSettings,aimDelta,masterVolume} from './settings.mjs';
 const $=id=>document.getElementById(id),canvas=$('world');
+const runtime=tacticalRuntime();
+$('tactics-runtime').textContent=runtime.backend==='rust-wasm'?'RUST TACTICS · WASM':'JS TACTICS · COMPATIBILITY MODE';
+$('tactics-runtime').title=runtime.reason||'Cover collision and formation routes run in Rust compiled to WebAssembly.';
 const settingsDefaults={...DEFAULT_SETTINGS,reduceEffects:window.matchMedia('(prefers-reduced-motion: reduce)').matches};
 let settingsStorage=null;try{settingsStorage=window.localStorage;}catch{}
 let settings=loadSettings(settingsStorage,settingsDefaults);
@@ -18,7 +22,7 @@ const safeLoad=(key=SAVE_KEY)=>{try{return restore(localStorage.getItem(key));}c
 const hasSave=key=>{try{return localStorage.getItem(key)!==null;}catch{return false;}};
 let s=createGame(),renderer,active=false,paused=false,commander=false,commanderCompact=false,buildMenu=false,help=false,mapExpanded=false,rpgMenu=false,dialogue=false,lockMenu=false,lockId=null,rpgTab='inventory',selectedPlace='home',dialogueReply='',trading=false,order='move',quality='high',last=performance.now(),bank=0,lastUi=0,lastMini=0,lastNotice=0,lastAutoSave=0,healthBefore=s.player.hp,zoneBefore='frontier',eraBefore='medieval',shotBefore=0;
 const keys=new Set(),input={x:0,z:0,sprint:false,jump:false,aim:false,fire:false,commander:false,yaw:0,pitch:-.075};
-const noteEls=[];let commanderDrag=null;
+const noteEls=[];let commanderDrag=null,trackedWarSortie=null;
 const selectBox=document.getElementById('command-select-box');
 try{renderer=new WorldRenderer(canvas,quality);}catch(e){$('error').textContent=`3D renderer unavailable: ${e.message}`;$('error').classList.remove('hidden');}
 let audio=null,masterGain=null;let weakBefore=0;
@@ -26,14 +30,20 @@ function tone(freq=220,seconds=.1,kind='triangle',volume=.12,end=freq*.6){if(!au
 function sound(name){if(name==='shoot')tone(s.player.weapon==='rail'?150:350,.09,'sawtooth',.04,45);if(name==='hit')tone(790,.10,'square',.025,360);if(name==='fold'){tone(145,.65,'sine',.15,800);tone(420,.37,'triangle',.07,120);}if(name==='echo')tone(1000,.55,'sine',.1,130);if(name==='notification')tone(430,.22,'sine',.045,620);if(name==='explosion')tone(80,.48,'sawtooth',.15,28);if(name==='build')tone(180,.2,'triangle',.08,390);}
 function updateContinue(){$('continue-game').disabled=!safeLoad(SAVE_KEY);$('continue-quick').disabled=!safeLoad(QUICK_SAVE_KEY);}
 updateContinue();
-function pointer(){if(!commander&&!paused&&!buildMenu&&!help&&!rpgMenu&&!dialogue&&!lockMenu&&active&&document.pointerLockElement!==canvas){try{canvas.requestPointerLock();}catch{}}}
+const canCapturePointer=()=>!commander&&!paused&&!buildMenu&&!help&&!rpgMenu&&!dialogue&&!lockMenu&&active;
+function pointer(){if(canCapturePointer()&&document.pointerLockElement!==canvas){try{
+ // Pointer-lock requests resolve asynchronously. Rejections after Escape are normal.
+ const request=canvas.requestPointerLock();request?.catch(()=>{});
+}catch{}}}
 function exitPointer(){if(document.pointerLockElement===canvas)document.exitPointerLock();}
+// A pending request may finish after a menu opens; do not let it capture menu clicks.
+document.addEventListener('pointerlockchange',()=>{if(!canCapturePointer())exitPointer();});
 function setVisibility(id,show){$(id).classList.toggle('hidden',!show);}
 function start(kind='new'){
  const quick=['drop','war','continue-quick'].includes(kind),key=quick?QUICK_SAVE_KEY:SAVE_KEY;
  if(['new','drop','war'].includes(kind)&&hasSave(key)&&!window.confirm(`Start a new ${quick?'quick session':'open world'}? This replaces its existing saved frontier progress.`))return;
  const loaded=kind==='continue'||kind==='continue-quick'?safeLoad(key):null;if((kind==='continue'||kind==='continue-quick')&&!loaded){updateContinue();return;}
- currentSaveKey=key;s=loaded||createGame((0xC0F01D + Math.floor(Math.random()*200000))|0);
+ trackedWarSortie=null;currentSaveKey=key;s=loaded||createGame((0xC0F01D + Math.floor(Math.random()*200000))|0);
  if(kind==='drop')enterOperation(s,0);if(kind==='war')enterOperation(s,3);
  active=true;paused=false;commander=false;commanderCompact=false;buildMenu=false;help=false;rpgMenu=false;dialogue=false;lockMenu=false;mapExpanded=false;document.body.classList.remove('commanding','command-compact','map-expanded');keys.clear();input.fire=false;
  setVisibility('menu',false);setVisibility('hud',true);setVisibility('commander-panel',false);setVisibility('build-panel',false);setVisibility('pause-overlay',false);setVisibility('help-overlay',false);setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);
@@ -93,6 +103,8 @@ function togglePause(value=!paused){if(!active)return;if(value){rpgMenu=false;di
 function toggleHelp(value=!help){if(value){rpgMenu=false;dialogue=false;lockMenu=false;setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);}help=value;setVisibility('help-overlay',help);if(help)exitPointer();else pointer();}
 function toggleBuild(value=!buildMenu){if(!active||rpgMenu||dialogue||lockMenu)return;buildMenu=value;setVisibility('build-panel',buildMenu);if(value){exitPointer();refreshBuild();}else pointer();}
 function setCommanderCompact(yes){commanderCompact=!!yes;document.body.classList.toggle('command-compact',commander&&commanderCompact);$('commander-compact').textContent=commanderCompact?'EXPAND COMMAND CONSOLE  [ ` ]':'CLEAR MAP FOR ORDERS  [ ` ]';}
+$('war-skip-sortie').onclick=()=>{if(skipWarSortie(s))refresh(true);};
+$('war-track-sortie').onclick=()=>{trackedWarSortie=s.war?.expedition&&trackedWarSortie!==s.war.expedition?s.war.expedition:null;refresh(true);};
 $('commander-compact').onclick=()=>setCommanderCompact(!commanderCompact);
 function toggleCommander(){if(!active||paused||buildMenu||help||rpgMenu||dialogue||lockMenu)return;commander=!commander;input.commander=commander;document.body.classList.toggle('commanding',commander);setCommanderCompact(commanderCompact);setVisibility('commander-panel',commander);setVisibility('war-controls',commander&&!!s.war);input.fire=false;if(commander){renderer.tactical.x=s.player.x;renderer.tactical.z=s.player.z;renderer.terrainOrigin='';renderer.propsKey='';exitPointer();refreshWarCommands();selectOrder('move');}else pointer();}
 function toast(text,type='info'){let container=$('notifications'),item=document.createElement('div');item.className='note '+type;item.textContent=text;container.prepend(item);noteEls.push({item,at:performance.now()});while(container.childElementCount>4)container.lastElementChild.remove();}
@@ -108,10 +120,15 @@ function refreshWarCommands(){
  $('war-stats').textContent=`${stats.supplies} SUPPLIES (+${stats.income}/s) · ${stats.population}/${stats.popCap} POP · ${stats.held}/3 WELLS · ${stats.anchorsRemaining}/2 ENEMY ANCHORS · ${stats.coverRemaining} COVER SITES · HQ ${stats.baseHp} / ENEMY ${stats.enemyBaseHp} · RIFT SURGE ${stats.stormIn}s`;
  $('war-heritage').textContent=`${heritage.name} · ${heritage.trait} · ${s.temporal.lineage.equipped.length} SCIENCES EQUIPPED · ${activeWeaves(s).length} CROSS-ERA FUSIONS`;
  $('war-log').textContent=w.events.at(-1)||'Capture timewells and assault the opposing throne.';
+ const orders=$('war-siege-orders');setVisibility('war-siege-brief',!!stats.bellSiege);
+ if(stats.bellSiege){const signature=JSON.stringify(stats.bellSiege);if(orders.dataset.signature!==signature){orders.dataset.signature=signature;orders.textContent='';for(const q of stats.bellSiege){const item=uiElement('li','',`${q.name} / ${q.status.toUpperCase()}`);item.append(uiElement('small','',`FROM ${q.act.toUpperCase()} · ${q.reward}`));orders.append(item);}}}
+ if(trackedWarSortie!==w.expedition)trackedWarSortie=null;
+ setVisibility('war-skip-sortie',!!w.bellSiege);$('war-skip-sortie').disabled=!w.expedition?.sortieId;
+ const track=$('war-track-sortie');track.disabled=!w.expedition;track.textContent=trackedWarSortie?'TRACK MAIN SIEGE OBJECTIVE':'TRACK OPTIONAL SORTIE';track.setAttribute('aria-pressed',String(!!trackedWarSortie));
  const mission=$('war-expedition');
- if(stats.expedition){const e=stats.expedition,spec=WAR_EXPEDITIONS[e.kind];mission.classList.add('active');mission.textContent='';
-  mission.append(uiElement('strong','',`${spec.name} · ${e.seconds}s`),uiElement('span','',spec.description),uiElement('small','',`${e.progress}% COMPLETE · ${spec.reward} · ${stats.crisesResolved} RESOLVED / ${stats.crisesLost} LOST`));
- }else{mission.classList.remove('active');mission.textContent=`ENEMY STRATEGY: ${stats.enemyDoctrine} · NEXT CRISIS ${Math.ceil(w.expeditionNext)}s · ${stats.crisesResolved} RESOLVED / ${stats.crisesLost} LOST`;}
+ if(stats.expedition){const e=stats.expedition,spec=e;mission.classList.add('active');mission.textContent='';
+  mission.append(uiElement('strong','',`${spec.name} · ${e.seconds}s`),uiElement('span','',spec.description),uiElement('small','',`${Math.round(dist(s.player,w.expedition))}m · ${e.progress}% COMPLETE · ${spec.reward} · ${stats.crisesResolved} RESOLVED / ${stats.crisesLost} LOST`));
+ }else{mission.classList.remove('active');mission.textContent=`ENEMY STRATEGY: ${stats.enemyDoctrine} · ${stats.bellSiege?'FIELD ORDERS ABOVE / SORTIES UNLOCK AS THE SIEGE ADVANCES':`NEXT CRISIS ${Math.ceil(w.expeditionNext)}s`} · ${stats.crisesResolved} RESOLVED / ${stats.crisesLost} LOST`;}
  const roster=$('war-select'),key=[w.army.map(g=>g.id).join(','),...(w.selectedBattalionIds||[])].join('|');
  if(roster.dataset.signature!==key){roster.dataset.signature=key;roster.textContent='';
   const all=uiElement('button',w.selectedBattalionIds?.length?'':'active','ALL BATTALIONS · GROUP ORDER');all.dataset.battalion='all';all.onclick=()=>{selectWarBattalion(s,null);refreshWarCommands();};roster.append(all);
@@ -315,7 +332,7 @@ function refresh(force=false){if(!renderer||!active)return;
  set('hunger',`${Math.ceil(p.hunger)}%`);progress('hunger-bar',p.hunger/100);set('thirst',`${Math.ceil(p.thirst)}%`);progress('thirst-bar',p.thirst/100);
  for(const name of ['scrap','ore','fiber','flux'])set(name,Math.floor(s.inventory[name]));set('medkits',s.inventory.medkit);set('rations',s.inventory.ration);set('water-count',s.inventory.water);
  set('zone-label',op?`${ERAS[s.era].name} / ${op.kind==='war'?'ERA WAR':'OPERATION'}`:s.dungeon?`${s.dungeon.name.toUpperCase()} / DUNGEON`:`${ERAS[s.era].name} / FREE ROAM`);set('player-era',ERAS[s.era].period);set('fold-target-name',ERAS[s.temporal.selectedEra].name);set('world-clock',`DAY ${String(Math.floor(s.time/2400)+1).padStart(3,'0')} · ${String(Math.floor(s.dayTime/3600)).padStart(2,'0')}:${String(Math.floor(s.dayTime%3600/60)).padStart(2,'0')}`);
- if(op&&o){set('directive-label','OPERATION DIRECTIVE');set('objective-phase',op.kind==='war'?`ACT ${['foothold','anchors','throne','extraction'].indexOf(s.war.act)+1}/4 · ${CONTRACTS[op.contract].region.toUpperCase()}`:`PHASE ${String(op.stage+1).padStart(2,'0')} / 06 · ${CONTRACTS[op.contract].region.toUpperCase()}`);set('objective-name',warGoal?warGoal.name:o.name);set('objective-description',warGoal?`${warGoal.description}${s.war.expedition?' / OPTIONAL SIDE CRISIS: '+WAR_EXPEDITIONS[s.war.expedition.type].name:''}`:o.description);
+ if(op&&o){set('directive-label','OPERATION DIRECTIVE');set('objective-phase',op.kind==='war'?`ACT ${['foothold','anchors','throne','extraction'].indexOf(s.war.act)+1}/4 · ${CONTRACTS[op.contract].region.toUpperCase()}`:`PHASE ${String(op.stage+1).padStart(2,'0')} / 06 · ${CONTRACTS[op.contract].region.toUpperCase()}`);set('objective-name',warGoal?warGoal.name:o.name);set('objective-description',warGoal?`${warGoal.description}${s.war.expedition?' / OPTIONAL SIDE CRISIS: '+warSummary(s.war).expedition.name:''}`:o.description);
   set('objective-distance',warGoal?`${warGoal.detail} · ${Math.round(dist(p,warGoal))}M` :`${Math.round(dist(p,o))} M TO TARGET · ${Math.round(o.progress)}/${o.target}`);set('mission-time',fmtTime(op.timeLeft));progress('objective-progress-bar',warGoal?warGoal.progress/Math.max(1,warGoal.target):o.progress/o.target);
  }else if(s.dungeon){const d=s.dungeon,stage=d.bossDead?(d.looted?'COMPLETE':'CLAIM THE RELIC'):d.sigils.every(Boolean)?'SLAY THE GUARDIAN':'ACTIVATE THE TWO RELAYS';set('directive-label','DUNGEON QUEST');set('objective-phase',`DEEP VAULT / ${DUNGEON_BY_ID[d.id].name}`);set('objective-name',stage);set('objective-description',DUNGEON_BY_ID[d.id].subtitle);set('objective-distance',`${d.sigils.filter(Boolean).length}/2 RELAYS · ${d.bossDead?'BOSS DOWN':'GUARDIAN SEALED'}`);set('mission-time','NO TIME LIMIT');progress('objective-progress-bar',(d.sigils.filter(Boolean).length+(d.bossDead?1:0)+(d.looted?1:0))/4);
  }else{const quest=activeQuest(s),qState=quest&&s.rpg.quests[quest.id];set('directive-label',`${ERAS[s.era].period} / SURVIVAL`);set('objective-phase',quest?'ACTIVE QUEST · '+NPC_BY_ID[quest.giver].name:'00 // FRONTIER · NO TIME LIMIT');set('objective-name',quest?quest.name:s.rpg.bounty?.status==='active'?s.rpg.bounty.name:'HISTORY BELONGS TO THE BOLD');set('objective-description',quest?quest.description:s.rpg.bounty?.status==='active'?'Radiant bounty: '+s.rpg.bounty.goal.type+' '+s.rpg.bounty.goal.target+' ×'+s.rpg.bounty.goal.count:'Speak to settlers, enter ancient vaults, forge equipment, discover landmarks and command your troops. Press L for quests.');set('objective-distance',quest?`${qState.progress}/${quest.goal.count} ${quest.goal.type.toUpperCase()}`:s.rpg.bounty?.status==='active'?`${s.rpg.bounty.progress}/${s.rpg.bounty.goal.count} BOUNTY`:`${s.rpg.discovered.length}/${LANDMARKS.length} PLACES FOUND`);set('mission-time',quest?'QUEST TRACKED':s.rpg.bounty?.status==='active'?'BOUNTY ACTIVE':'FREE ROAM');progress('objective-progress-bar',quest?qState.progress/quest.goal.count:0);}
@@ -327,7 +344,8 @@ function refresh(force=false){if(!renderer||!active)return;
   const el=document.createElement('div');el.className='squad-row';const icon=document.createElement('div');icon.className='squad-avatar';icon.textContent=u.role==='MEDIC'?'✚':u.role==='HEAVY'?'⬢':'◈';const content=document.createElement('div');content.className='squad-text';const b=document.createElement('strong');b.textContent=`${u.role} / ${String(u.id).padStart(2,'0')}`;const label=document.createElement('span');label.textContent=u.order.toUpperCase();content.append(b,label);const bar=document.createElement('div');bar.className='squad-health';const fill=document.createElement('div');fill.style.width=`${100*clamp(u.hp/u.maxHp,0,1)}%`;bar.append(fill);el.append(icon,content,bar);squad.append(el);
  }
  const near=nearestInteraction(s);setVisibility('interaction',!!near&&!commander);if(near)set('interaction-title',near.label);
- let goal=warGoal|| (op?o:s.dungeon?(s.dungeon.looted?{x:-12,z:6}:!s.dungeon.sigils[0]?{x:-11,z:-43}:!s.dungeon.sigils[1]?{x:12,z:-83}:s.dungeon.bossDead?{x:7,z:-137}:{x:0,z:-129}):[...availableRifts(s.era),...worldGates(s)].sort((a,b)=>dist(p,a)-dist(p,b))[0]);if(goal){const y=terrainHeight(goal.x,goal.z,s.seed,s.zone)+10,project=renderer.project([goal.x,y,goal.z]);const marker=$('objective-marker');setVisibility('objective-marker',true);set('marker-title',warGoal?warGoal.name:op?'OPERATION TARGET':s.dungeon?'VAULT OBJECTIVE':goal.type==='advanced'?`ADVANCED / ${ERAS[goal.era].name}`:'WAR RIFT');set('marker-distance',`${Math.round(dist(p,goal))}m`);
+ const sortieGoal=trackedWarSortie&&trackedWarSortie===s.war?.expedition?trackedWarSortie:null;
+ let goal=sortieGoal||warGoal|| (op?o:s.dungeon?(s.dungeon.looted?{x:-12,z:6}:!s.dungeon.sigils[0]?{x:-11,z:-43}:!s.dungeon.sigils[1]?{x:12,z:-83}:s.dungeon.bossDead?{x:7,z:-137}:{x:0,z:-129}):[...availableRifts(s.era),...worldGates(s)].sort((a,b)=>dist(p,a)-dist(p,b))[0]);if(goal){const y=terrainHeight(goal.x,goal.z,s.seed,s.zone)+10,project=renderer.project([goal.x,y,goal.z]);const marker=$('objective-marker');setVisibility('objective-marker',true);set('marker-title',sortieGoal?`OPTIONAL / ${warSummary(s.war).expedition.name}`:warGoal?warGoal.name:op?'OPERATION TARGET':s.dungeon?'VAULT OBJECTIVE':goal.type==='advanced'?`ADVANCED / ${ERAS[goal.era].name}`:'WAR RIFT');set('marker-distance',`${Math.round(dist(p,goal))}m`);
   if(project){marker.style.left=`${clamp(project.x,40,window.innerWidth-40)}px`;marker.style.top=`${clamp(project.y,90,window.innerHeight-120)}px`;}else{marker.style.left='50%';marker.style.top='16%';}
  }
  set('coord-label',`${Math.round(p.x)} / ${Math.round(p.z)}`);set('map-label',op?op.kind==='war'?'TIME WAR · RTS':`WARFRONT · ${op.stage+1}/6`:s.dungeon?'DUNGEON · DEPTH 01':`${ERAS[s.era].name} · OPEN`);
@@ -368,5 +386,5 @@ function frame(now){const dt=Math.min(.06,(now-last)/1000||.016);last=now;
 }
 window.addEventListener('beforeunload',()=>{if(active&&s.zone==='frontier')safeSave();});
 // Test/dev inspector: read-only game objects and deterministic module methods, no account data.
-Object.defineProperty(window,'__riftfront',{get:()=>({state:s,renderer,active,paused,commander,rpgMenu,dialogue,settings:{...settings},audioStatus:{state:audio?.state??'not-started',gain:masterGain?.gain.value??0},sim:{stepGame,enterOperation,finishOperation,issueOrder,fold,echo,addBuilding,castAbility,dodge,serialize,restore},ui:{toggleRpg,openDialogue,renderRpg}})});
+Object.defineProperty(window,'__riftfront',{get:()=>({tactics:tacticalRuntime(),state:s,renderer,active,paused,commander,rpgMenu,dialogue,settings:{...settings},audioStatus:{state:audio?.state??'not-started',gain:masterGain?.gain.value??0},sim:{stepGame,enterOperation,finishOperation,issueOrder,fold,echo,addBuilding,castAbility,dodge,serialize,restore},ui:{toggleRpg,openDialogue,renderRpg}})});
 requestAnimationFrame(frame);

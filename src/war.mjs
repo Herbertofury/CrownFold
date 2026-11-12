@@ -56,7 +56,7 @@ export const WAR_EXPEDITIONS=Object.freeze({
  escort:{name:'ESCORT THE TIMELESS',description:'Escort displaced civilians to your keep. Soldiers can cover the convoy while you fight or command.',reward:'SUPPLIES + FUTURE FAVOR'}
 });
 export const WAR_CAMPAIGNS=Object.freeze([
- {id:'siege_of_bells',name:'THE SIEGE OF ELEVEN BELLS',era:'medieval',region:'The Crownless March',subtitle:'A keep obeys no century. Cut the siege line, occupy the three timewells, then dethrone the Bell Regent.',difficulty:1,mode:'war',enemyEra:'steam',enemyDoctrine:'pressure'},
+ {id:'siege_of_bells',name:'THE SIEGE OF ELEVEN BELLS',era:'medieval',region:'The Crownless March',subtitle:'Break the Bell Regent’s siege. Recover the survey ledger, silence Ash Foundry, and bring the Bellkeepers home, or risk extraction without their help.',difficulty:1,mode:'war',enemyEra:'steam',enemyDoctrine:'pressure'},
  {id:'before_the_first_fire',name:'BEFORE THE FIRST FIRE',era:'primeval',region:'The First Garden',subtitle:'The ancient mind-palace faces an army of algorithms that cannot imagine the unwritten.',difficulty:2,mode:'war',enemyEra:'farfuture',enemyDoctrine:'hunter'},
  {id:'iron_parliament',name:'THE IRON PARLIAMENT',era:'steam',region:'The Gilded Engine',subtitle:'Seize the foundries before their mechanized ministers assemble an army across centuries.',difficulty:2,mode:'war',enemyEra:'neon',enemyDoctrine:'raider'},
  {id:'the_blackout_coup',name:'THE BLACKOUT COUP',era:'neon',region:'The Electric Republic',subtitle:'An army of cathedral harmonics undermines the grid. Rescue the city using both networks and steel.',difficulty:3,mode:'war',enemyEra:'medieval',enemyDoctrine:'bulwark'},
@@ -70,6 +70,29 @@ export const WAR_ACTS=Object.freeze({
  throne:{name:'III / THE LAST CITADEL',description:'Breach the now-exposed Chronal Throne. Protect your own supply line while assaulting.'},
  extraction:{name:'IV / HOLD THE EXIT',description:'Reach the evacuation beacon with your soldier or battalions, call extraction, and defend the corridor.'}
 });
+// Authored, optional sorties for the first siege. The other four campaigns retain
+// their repeatable crisis director. These are tactical choices, never time gates.
+export const BELL_SIEGE_SORTIES=Object.freeze([
+ Object.freeze({id:'ledger',act:'foothold',type:'salvage',name:'RECOVER THE SURVEY LEDGER',description:'The Regent seized the surveyors’ lost science cache at the western well. Hold the amber marker uncontested to recover the buried supply routes.',reward:'+125 SUPPLIES / +4 INSIGHT / 25% FASTER WELL CAPTURE',x:-68,z:-62,seconds:125,success:'Supply routes recovered: your companies capture timewells 25% faster.'}),
+ Object.freeze({id:'foundry',act:'anchors',type:'spire',name:'SILENCE ASH FOUNDRY',description:'A signal furnace east of the anchors coordinates the Regent’s wages and reinforcements. Shoot, bombard, or surround the amber spire to break the siege payroll.',reward:'+155 SUPPLIES / +2 INSIGHT / ENEMY INCOME -35%',x:82,z:-108,seconds:125,success:'Ash Foundry silenced: enemy supply income reduced by 35% for this siege.'}),
+ Object.freeze({id:'bellkeepers',act:'throne',type:'escort',name:'BRING THE BELLKEEPERS HOME',description:'The Bellkeepers are stranded on the western approach. Stay within 12m, or send battalions within 19m, to escort them back to your keep. They can tune a faster escape corridor.',reward:'+125 SUPPLIES / +2 INSIGHT / EXTRACTION 24s INSTEAD OF 36s',x:-72,z:-100,seconds:150,success:'Bellkeepers rescued: the extraction corridor now needs only 24 seconds.'})
+]);
+const BELL_ACT_ORDER=['foothold','anchors','throne','extraction'];
+function nextBellSortie(w){return BELL_SIEGE_SORTIES.find(q=>w.bellSiege?.outcomes[q.id]==='pending'&&BELL_ACT_ORDER.indexOf(q.act)<=BELL_ACT_ORDER.indexOf(w.act));}
+export function skipWarSortie(s){const w=s?.war,e=w?.expedition;
+ if(!w?.bellSiege||!e?.sortieId||w.victory||w.act==='extraction'||s.zone!=='operation')return false;
+ w.bellSiege.outcomes[e.sortieId]='skipped';pushEvent(w,`SORTIE LEFT BEHIND / ${warExpeditionSpec(e).name} / NO REWARD`);
+ w.expedition=null;w.expeditionNext=8;return true;
+}
+export function warExpeditionSpec(e){return e?.sortieId?BELL_SIEGE_SORTIES.find(q=>q.id===e.sortieId)||WAR_EXPEDITIONS[e.type]:WAR_EXPEDITIONS[e?.type];}
+function closeBellSorties(w){if(!w?.bellSiege)return;
+ for(const q of BELL_SIEGE_SORTIES)if(['pending','active'].includes(w.bellSiege.outcomes[q.id]))w.bellSiege.outcomes[q.id]='missed';
+ if(w.expedition?.sortieId)w.expedition=null;
+}
+export function bellSiegeReport(w,success){if(!w?.bellSiege)return null;closeBellSorties(w);
+ const result=BELL_SIEGE_SORTIES.map(q=>`${q.name}: ${w.bellSiege.outcomes[q.id].toUpperCase()}`).join('; ');
+ return `Eleven Bells ${success?'extracted':'withdrawal'}. ${result}.`;
+}
 export const WAR_SUPPORT=Object.freeze({
  epoch_lance:{name:'EPOCH LANCE',cost:105,cooldown:70,delay:3.5,description:'Target the selected battalion position or your forward aim. A delayed spacetime strike breaches structures and scatters enemies.'},
  timefall_pod:{name:'TIMEFALL DROP',cost:132,cooldown:85,delay:5.5,description:'Request a mixed-century reserve company at your position or selected battalion. Requires population capacity; no foundry needed.'}
@@ -80,7 +103,7 @@ function makeGroup(s,type,side,x,z){const def=BATTALIONS[type],id=++s.nextId;ret
 export function createWarfront(s,campaign){const enemyEra=campaign.enemyEra||'neon',friendlyEra=campaign.era||s.era||'medieval';
  const army=[makeGroup(s,'pikemen','ally',-5,7),makeGroup(s,'longbow','ally',9,5)];
  const choices=Object.keys(BATTALIONS).filter(id=>BATTALIONS[id].era===enemyEra);const enemyArmy=[makeGroup(s,choices[0]||'pikemen','enemy',0,-103)];
- return {campaign:campaign.id,era:friendlyEra,enemyEra,cover:makeBattlefieldCover(Math.max(0,WAR_CAMPAIGNS.findIndex(c=>c.id===campaign.id))),coverRevision:0,supplies:205,income:2.6,popCap:120,population:army.reduce((n,a)=>n+a.count,0),base:{x:0,z:16,hp:2500,maxHp:2500},enemyBase:{x:0,z:-150,hp:2900,maxHp:2900},anchors:[{id:'west',name:'WESTERN CHRONAL ANCHOR',x:-42,z:-114,hp:860,maxHp:860},{id:'east',name:'EASTERN CHRONAL ANCHOR',x:42,z:-116,hp:860,maxHp:860}],nodes:[{x:-72,z:-45,owner:'neutral',progress:0},{x:72,z:-48,owner:'neutral',progress:0},{x:1,z:-70,owner:'enemy',progress:0}],buildings:[{kind:'barracks',x:-13,z:14,hp:850}],queue:[],army,enemyArmy,enemyWaveTimer:27,enemyDoctrine:campaign.enemyDoctrine||'pressure',enemySupplies:220,enemyIncome:2.3,enemyExhaustion:0,enemyWaves:0,elapsed:0,events:[],victory:null,selectedBattalionIds:[],controlGroups:{},act:'foothold',footholdHold:0,footholdTarget:24,extraction:{x:0,z:-96,active:false,progress:0,target:36,contested:false,nextWave:9,waves:0},supportDrops:[],supportCooldowns:{},selectedBattalionId:null,powerCooldowns:{},riftSurgeNext:70,riftSurgeIndex:0,expedition:null,expeditionNext:24,expeditionIndex:0,expeditionsCompleted:0,expeditionsFailed:0};
+ return {campaign:campaign.id,bellSiege:campaign.id==='siege_of_bells'?{outcomes:Object.fromEntries(BELL_SIEGE_SORTIES.map(q=>[q.id,'pending']))}:null,era:friendlyEra,enemyEra,cover:makeBattlefieldCover(Math.max(0,WAR_CAMPAIGNS.findIndex(c=>c.id===campaign.id))),coverRevision:0,supplies:205,income:2.6,popCap:120,population:army.reduce((n,a)=>n+a.count,0),base:{x:0,z:16,hp:2500,maxHp:2500},enemyBase:{x:0,z:-150,hp:2900,maxHp:2900},anchors:[{id:'west',name:'WESTERN CHRONAL ANCHOR',x:-42,z:-114,hp:860,maxHp:860},{id:'east',name:'EASTERN CHRONAL ANCHOR',x:42,z:-116,hp:860,maxHp:860}],nodes:[{x:-72,z:-45,owner:'neutral',progress:0},{x:72,z:-48,owner:'neutral',progress:0},{x:1,z:-70,owner:'enemy',progress:0}],buildings:[{kind:'barracks',x:-13,z:14,hp:850}],queue:[],army,enemyArmy,enemyWaveTimer:27,enemyDoctrine:campaign.enemyDoctrine||'pressure',enemySupplies:220,enemyIncome:2.3,enemyExhaustion:0,enemyWaves:0,elapsed:0,events:[],victory:null,selectedBattalionIds:[],controlGroups:{},act:'foothold',footholdHold:0,footholdTarget:24,extraction:{x:0,z:-96,active:false,progress:0,target:36,contested:false,nextWave:9,waves:0},supportDrops:[],supportCooldowns:{},selectedBattalionId:null,powerCooldowns:{},riftSurgeNext:70,riftSurgeIndex:0,expedition:null,expeditionNext:24,expeditionIndex:0,expeditionsCompleted:0,expeditionsFailed:0};
 }
 export function trainBattalion(s,type){const w=s.war,def=BATTALIONS[type];if(!w||!def||w.victory||s.zone!=='operation')return false;
  if(w.population+def.count>w.popCap||!w.buildings.some(b=>b.kind===def.building)||w.supplies<def.cost)return false;
@@ -176,7 +199,7 @@ function stepWarActs(s,dt){const w=s.war;if(w.base.hp<=0){w.victory='enemy';push
  }else if(w.act==='anchors'){
   if(!activeAnchors(w).length){w.act='throne';pushEvent(w,'THE CHRONAL SHIELD HAS FALLEN / ASSAULT THE THRONE');}
  }else if(w.act==='throne'){
-  if(w.enemyBase.hp<=0){w.act='extraction';w.enemyWaveTimer=1e9;w.expedition=null;pushEvent(w,'THRONE DOWN / EXTRACT BEFORE THE RIFT COLLAPSES');}
+  if(w.enemyBase.hp<=0){w.act='extraction';w.enemyWaveTimer=1e9;closeBellSorties(w);w.expedition=null;pushEvent(w,'THRONE DOWN / EXTRACT BEFORE THE RIFT COLLAPSES');}
  }else if(w.act==='extraction'){
   const ex=w.extraction;if(!ex.active)return;
   ex.nextWave-=dt;if(ex.nextWave<=0){warExtractionWave(s);ex.nextWave=12;}
@@ -350,23 +373,28 @@ export function warExplosion(s,x,z,damage,radius){const w=s.war;if(!w)return;for
 // They force the player to choose between advancing the front and helping people across time.
 const EXPEDITION_SPOTS=Object.freeze([[-83,-84],[85,-102],[-21,-91],[68,-72],[-75,-128]]);
 export function startWarExpedition(s,kind=null){const w=s?.war;if(!w||w.victory||s.zone!=='operation'||w.expedition)return false;
- const kinds=Object.keys(WAR_EXPEDITIONS),which=kind||kinds[w.expeditionIndex%kinds.length];if(!Object.hasOwn(WAR_EXPEDITIONS,which))return false;
- const [x,z]=EXPEDITION_SPOTS[(w.expeditionIndex+WAR_CAMPAIGNS.findIndex(c=>c.id===w.campaign)+EXPEDITION_SPOTS.length)%EXPEDITION_SPOTS.length];
+ const sortie=kind===null&&w.bellSiege?nextBellSortie(w):null;if(kind===null&&w.bellSiege&&(!sortie||w.act==='extraction'))return false;
+ const kinds=Object.keys(WAR_EXPEDITIONS),which=kind||sortie?.type||kinds[w.expeditionIndex%kinds.length];if(!Object.hasOwn(WAR_EXPEDITIONS,which))return false;
+ const [x,z]=sortie?[sortie.x,sortie.z]:EXPEDITION_SPOTS[(w.expeditionIndex+WAR_CAMPAIGNS.findIndex(c=>c.id===w.campaign)+EXPEDITION_SPOTS.length)%EXPEDITION_SPOTS.length];
  w.expeditionIndex++;w.expedition={id:w.expeditionIndex,type:which,x,z,originX:x,originZ:z,timeLeft:which==='escort'?150:125,progress:0,hp:which==='spire'?410:which==='escort'?320:1,maxHp:which==='spire'?410:which==='escort'?320:1};
- pushEvent(w,`OPTIONAL FRONTLINE CRISIS / ${WAR_EXPEDITIONS[which].name}`);return true;
+ if(sortie){w.expedition.sortieId=sortie.id;w.expedition.timeLeft=sortie.seconds;w.bellSiege.outcomes[sortie.id]='active';}
+ pushEvent(w,`OPTIONAL FRONTLINE CRISIS / ${warExpeditionSpec(w.expedition).name}`);return true;
 }
 function completeExpedition(s){const w=s.war,e=w.expedition;if(!e)return;
  w.supplies=Math.min(900,w.supplies+(e.type==='spire'?155:125));s.temporal.insight+=e.type==='salvage'?4:2;
  if(e.type==='spire'){w.enemyExhaustion=Math.max(w.enemyExhaustion,65);w.enemySupplies=Math.max(0,w.enemySupplies-75);}
  if(e.type==='escort'){for(const g of w.army){g.morale=Math.min(100,g.morale+22);g.hp=Math.min(BATTALIONS[g.type].hp,g.hp+15);}}
- w.expeditionsCompleted++;pushEvent(w,`CRISIS RESOLVED / ${WAR_EXPEDITIONS[e.type].name} / SUPPLIES RECOVERED`);w.expedition=null;w.expeditionNext=105;
+ if(e.sortieId&&w.bellSiege){w.bellSiege.outcomes[e.sortieId]='success';if(e.sortieId==='bellkeepers')w.extraction.target=24;}
+ w.expeditionsCompleted++;pushEvent(w,`CRISIS RESOLVED / ${warExpeditionSpec(e).name} / SUPPLIES RECOVERED`);if(e.sortieId)pushEvent(w,warExpeditionSpec(e).success);w.expedition=null;w.expeditionNext=w.bellSiege?8:105;
 }
 function failExpedition(s){const w=s.war,e=w.expedition;if(!e)return;
  w.expeditionsFailed++;w.enemySupplies=Math.min(900,w.enemySupplies+60);
- pushEvent(w,`CRISIS LOST / ${WAR_EXPEDITIONS[e.type].name}`);w.expedition=null;w.expeditionNext=72;
+ if(e.sortieId&&w.bellSiege)w.bellSiege.outcomes[e.sortieId]='failed';
+ pushEvent(w,`CRISIS LOST / ${warExpeditionSpec(e).name}`);w.expedition=null;w.expeditionNext=w.bellSiege?8:72;
 }
 export function stepWarExpedition(s,dt){const w=s?.war;if(!w||w.victory)return;
- if(!w.expedition){w.expeditionNext-=dt;if(w.expeditionNext<=0)startWarExpedition(s);return;}
+ if(w.act==='extraction'&&w.bellSiege){closeBellSorties(w);return;}
+ if(!w.expedition){if(w.bellSiege&&!nextBellSortie(w))return;w.expeditionNext=Math.max(0,w.expeditionNext-dt);if(w.expeditionNext<=0)startWarExpedition(s);return;}
  const e=w.expedition;e.timeLeft-=dt;const allies=w.army.filter(g=>g.count>0&&distance(g,e)<19);
  const enemies=w.enemyArmy.filter(g=>g.count>0&&distance(g,e)<19);
  const playerNear=distance(s.player,e)<12;
@@ -411,7 +439,7 @@ export function stepWarfront(s,dt){const w=s.war;if(!w||w.victory)return w?.vict
  for(const id of Object.keys(w.powerCooldowns))w.powerCooldowns[id]=Math.max(0,w.powerCooldowns[id]-dt);
  const held=w.nodes.filter(n=>n.owner==='ally').length;w.income=(2.1+held*2.3+w.buildings.filter(b=>b.kind==='foundry').length*.18)*lineageEconomy(s)*(1+.07*(s.temporal?.skill.engineer||0));w.supplies=Math.min(900,w.supplies+w.income*dt);
  const enemyHeld=w.nodes.filter(n=>n.owner==='enemy').length;
- w.enemyIncome=w.act==='extraction'?0:(1.75+enemyHeld*2.25)*(1+.08*(s.operation?.difficulty||1));
+ w.enemyIncome=w.act==='extraction'?0:(1.75+enemyHeld*2.25)*(1+.08*(s.operation?.difficulty||1))*(w.bellSiege?.outcomes.foundry==='success'?.65:1);
  w.enemySupplies=Math.min(900,w.enemySupplies+w.enemyIncome*dt);
  w.enemyExhaustion=Math.max(0,w.enemyExhaustion-dt);
  for(const item of w.queue){item.remaining-=dt;if(item.remaining<=0){const i=w.buildings.find(b=>b.kind===BATTALIONS[item.type].building)||w.base;w.army.push(makeGroup(s,item.type,'ally',i.x+3,i.z-6));pushEvent(w,`${BATTALIONS[item.type].name} READY`);}}
@@ -419,7 +447,7 @@ export function stepWarfront(s,dt){const w=s.war;if(!w||w.victory)return w?.vict
  for(const group of w.army)updateGroup(s,group,w.enemyArmy,w.enemyBase,dt);
  for(const group of w.enemyArmy)updateGroup(s,group,w.army,w.base,dt);
  for(const node of w.nodes){const nearbyAllies=w.army.some(b=>b.count>0&&distance(b,node)<15)||distance(s.player,node)<10,nearbyEnemies=w.enemyArmy.some(b=>b.count>0&&distance(b,node)<15);
-  const capTrait=s.temporal?.lineage?.commanderEra==='primeval'?1.18:1;
+  const capTrait=(s.temporal?.lineage?.commanderEra==='primeval'?1.18:1)*(w.bellSiege?.outcomes.ledger==='success'?1.25:1);
   if(nearbyAllies&&!nearbyEnemies){node.progress=clamp(node.progress+dt*capTrait,0,12);if(node.progress>=12&&node.owner!=='ally'){node.owner='ally';node.progress=0;pushEvent(w,'TIMEWELL SECURED / INCOME INCREASED');}}
   else if(nearbyEnemies&&!nearbyAllies){node.progress=clamp(node.progress-dt,-12,12);if(node.progress<=-12&&node.owner!=='enemy'){node.owner='enemy';node.progress=0;pushEvent(w,'TIMEWELL LOST / SUPPLY CUT');}}
   else node.progress*=.99;
@@ -444,4 +472,4 @@ export function stepWarfront(s,dt){const w=s.war;if(!w||w.victory)return w?.vict
  stepWarActs(s,dt);
  return w.victory;
 }
-export function warSummary(w){if(!w)return null;const objective=warObjective(w);return {objective,act:w.act,extractionActive:w.extraction.active,supportDrops:w.supportDrops.map(d=>({id:d.id,seconds:Math.ceil(d.remaining)})),supportCooldowns:{...w.supportCooldowns},supplies:Math.floor(w.supplies),income:Math.round(w.income*10)/10,population:w.population,popCap:w.popCap,held:w.nodes.filter(n=>n.owner==='ally').length,alliedBattalions:w.army.length,enemyBattalions:w.enemyArmy.length,enemyBaseHp:Math.round(w.enemyBase.hp),baseHp:Math.round(w.base.hp),anchorsRemaining:activeAnchors(w).length,queue:w.queue.length,stormIn:Math.ceil(w.riftSurgeNext),selectedBattalionId:w.selectedBattalionId,selectedBattalionIds:[...(w.selectedBattalionIds||[])],enemyDoctrine:WAR_ENEMY_DOCTRINES[w.enemyDoctrine]?.name||'ADAPTIVE',enemySupplies:Math.floor(w.enemySupplies),coverRemaining:(w.cover||[]).filter(c=>c.hp>0).length,expedition:w.expedition?{kind:w.expedition.type,name:WAR_EXPEDITIONS[w.expedition.type]?.name,progress:Math.round(w.expedition.progress*100),seconds:Math.ceil(w.expedition.timeLeft)}:null,crisesResolved:w.expeditionsCompleted,crisesLost:w.expeditionsFailed};}
+export function warSummary(w){if(!w)return null;const objective=warObjective(w);return {objective,act:w.act,bellSiege:w.bellSiege?BELL_SIEGE_SORTIES.map(q=>({id:q.id,name:q.name,act:q.act,reward:q.reward,status:w.bellSiege.outcomes[q.id]})):null,extractionActive:w.extraction.active,supportDrops:w.supportDrops.map(d=>({id:d.id,seconds:Math.ceil(d.remaining)})),supportCooldowns:{...w.supportCooldowns},supplies:Math.floor(w.supplies),income:Math.round(w.income*10)/10,population:w.population,popCap:w.popCap,held:w.nodes.filter(n=>n.owner==='ally').length,alliedBattalions:w.army.length,enemyBattalions:w.enemyArmy.length,enemyBaseHp:Math.round(w.enemyBase.hp),baseHp:Math.round(w.base.hp),anchorsRemaining:activeAnchors(w).length,queue:w.queue.length,stormIn:Math.ceil(w.riftSurgeNext),selectedBattalionId:w.selectedBattalionId,selectedBattalionIds:[...(w.selectedBattalionIds||[])],enemyDoctrine:WAR_ENEMY_DOCTRINES[w.enemyDoctrine]?.name||'ADAPTIVE',enemySupplies:Math.floor(w.enemySupplies),coverRemaining:(w.cover||[]).filter(c=>c.hp>0).length,expedition:w.expedition?{kind:w.expedition.type,...warExpeditionSpec(w.expedition),name:warExpeditionSpec(w.expedition)?.name,progress:Math.round(w.expedition.progress*100),seconds:Math.ceil(w.expedition.timeLeft)}:null,crisesResolved:w.expeditionsCompleted,crisesLost:w.expeditionsFailed};}

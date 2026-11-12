@@ -1,0 +1,32 @@
+name: CrownFold Eleven Bells
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  authored-siege:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax, full regression suite and reproducible offline build
+        run: |
+          npm run check
+          npm test
+          npm run build
+          git diff --exit-code -- dist/
+      - name: Install browser harness
+        run: |
+          python -m pip install playwright==1.62.0
+          python -m playwright install --with-deps chromium
+      - name: Authored choices, tracking and saved debrief
+        run: python tests/eleven_bells_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: crownfold-eleven-bells-evidence
+          path: test-results/
