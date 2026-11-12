@@ -62,6 +62,10 @@ This is an initial comfort pass, not complete accessibility support, key rebindi
 
 Lyra's **Glass Key → Three Echoes → faction ending** chain credits vaults you already cleared. Accepting a dungeon quest late no longer requires an impossible repeat first-clear. Existing saves with stuck dungeon quests are repaired when loaded. Credit updates never grant rewards: return to Lyra and claim each quest once through dialogue. Your chosen ending and claimed rewards remain saved.
 
+## Exploration quest recovery
+
+Sable credits landmarks you found before taking her quests. Finding the Ghost Convoy early no longer blocks its turn-in; Beyond the Last Map counts distinct discovered places, excluding your pre-known home camp. Older stuck saves repair on load without paying rewards automatically. Return to Sable to claim each reward once.
+
 ## Quest wayfinding
 
 New frontier players are guided to Mira Vale for their first quest. Press **L** to track an active or ready quest. Its marker leads to remaining harvest resources, living enemies, unopened caches, undiscovered landmarks or the required vault. Finished quests keep pointing to their giver until you claim the reward. In another era, the guide points to the return rift instead of reusing medieval coordinates.

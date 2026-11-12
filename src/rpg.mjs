@@ -135,7 +135,16 @@ function reconcileDungeonQuest(r,id){
  state.progress=limit(Math.max(state.progress,remembered.length),0,q.goal.count);
  if(state.progress>=q.goal.count)state.status='ready';
 }
-export function takeQuest(s,id){const q=QUEST_BY_ID[id];if(!q||s.rpg.quests[id]||q.prerequisite&&s.rpg.quests[q.prerequisite]?.status!=='done')return false;s.rpg.quests[id]={status:'active',progress:0};reconcileDungeonQuest(s.rpg,id);s.rpg.tracked=id;rpgMessage(s,s.rpg.quests[id].status==='ready'?`QUEST READY / RETURN TO ${NPC_BY_ID[q.giver].name}`:`QUEST BEGUN / ${q.name}`,'command');return true;}
+// Finite discoveries remain usable after meeting Sable. Home is pre-known,
+// not an earned discovery. Never pay rewards while repairing world-history credit.
+function reconcileDiscoveryQuest(r,id){
+ const q=QUEST_BY_ID[id],state=r.quests[id];
+ if(q?.goal.type!=='discover'||!state||!['active','ready'].includes(state.status))return;
+ const count=new Set(r.discovered.filter(place=>place!=='home'&&LANDMARKS.some(p=>p.id===place)&&(q.goal.target==='any'||q.goal.target===place))).size;
+ state.progress=limit(Math.max(state.progress,count),0,q.goal.count);
+ if(state.progress>=q.goal.count)state.status='ready';
+}
+export function takeQuest(s,id){const q=QUEST_BY_ID[id];if(!q||s.rpg.quests[id]||q.prerequisite&&s.rpg.quests[q.prerequisite]?.status!=='done')return false;s.rpg.quests[id]={status:'active',progress:0};reconcileDungeonQuest(s.rpg,id);reconcileDiscoveryQuest(s.rpg,id);s.rpg.tracked=id;rpgMessage(s,s.rpg.quests[id].status==='ready'?`QUEST READY / RETURN TO ${NPC_BY_ID[q.giver].name}`:`QUEST BEGUN / ${q.name}`,'command');return true;}
 export function turnInQuest(s,id){const q=QUEST_BY_ID[id],state=s.rpg.quests[id];if(!q||state?.status!=='ready')return false;state.status='done';giveReward(s,q.rewards);for(const id of s.rpg.companions)s.rpg.affinity[id]=limit((s.rpg.affinity[id]||0)+6,0,100);s.rpg.tracked=QUESTS.find(a=>s.rpg.quests[a.id]?.status==='active')?.id||null;rpgMessage(s,`QUEST COMPLETE / ${q.name}`,'success');return true;}
 export function rpgEvent(s,type,target='any',amount=1){if(!s.rpg)return;
  const b=s.rpg.bounty;if(b?.status==='active'&&b.goal.type===type&&(b.goal.target==='any'||b.goal.target===target)){
@@ -203,5 +212,5 @@ export function restoreRPG(data,s){const defaultRpg=makeRPG();if(!data||typeof d
  for(const k of Object.keys(r.equipped))if(r.gear.some(g=>g.id===data.equipped?.[k]&&g.slot===k))r.equipped[k]=data.equipped[k];
  r.discovered=Array.isArray(data.discovered)?[...new Set(['home',...data.discovered.filter(v=>LANDMARKS.some(p=>p.id===v))])]:['home'];r.opened=Array.isArray(data.opened)?[...new Set(data.opened.filter(v=>typeof v==='string').slice(0,2000))]:[];
  r.dungeonCleared=Array.isArray(data.dungeonCleared)?[...new Set(data.dungeonCleared.filter(x=>typeof x==='string'&&Object.hasOwn(DUNGEON_BY_ID,x)))]:[];
- for(const id of Object.keys(r.quests))reconcileDungeonQuest(r,id);
+ for(const id of Object.keys(r.quests)){reconcileDungeonQuest(r,id);reconcileDiscoveryQuest(r,id);}
  r.companions=Array.isArray(data.companions)?[...new Set(data.companions.filter(x=>NPC_BY_ID[x]?.companion))]:[];r.affinity={...data.affinity};r.flags={...data.flags};r.crime={bounty:limit(Number(data.crime?.bounty)||0,0,100000),stolen:limit(Number(data.crime?.stolen)||0,0,100000),caught:limit(Number(data.crime?.caught)||0,0,100000)};r.totalCrafted=limit(Number(data.totalCrafted)||0,0,100000);r.totalLooted=limit(Number(data.totalLooted)||0,0,100000);return r;}
