@@ -5,7 +5,12 @@ import {ERAS,ERA_ORDER,CHRONICLE,availableRifts,eraSites,spendInsight} from './t
 import {COMMANDER_HERITAGES,LOST_TECH,MAX_WEAVE_SLOTS,WAR_POWERS,WEAVE_SYNERGIES,setCommanderHeritage,researchLostTech,lostTechCost,equipLostTech,equippedTech,activeWeaves} from './lineage.mjs';
 import {BATTALIONS,WAR_BUILDINGS,WAR_CAMPAIGNS,WAR_STANCES,WAR_EXPEDITIONS,WAR_SUPPORT,trainBattalion,constructWarBuilding,warSummary,selectWarBattalion,selectWarBattalions,setWarControlGroup,recallWarControlGroup,setWarStance,warCastPower,callWarSupport,signalWarExtraction,canSignalWarExtraction,warObjective} from './war.mjs';
 import {selectEpoch} from './sim.mjs';
+import {DEFAULT_SETTINGS,loadSettings,saveSettings,normalizeSettings,aimDelta,masterVolume} from './settings.mjs';
 const $=id=>document.getElementById(id),canvas=$('world');
+const settingsDefaults={...DEFAULT_SETTINGS,reduceEffects:window.matchMedia('(prefers-reduced-motion: reduce)').matches};
+let settingsStorage=null;try{settingsStorage=window.localStorage;}catch{}
+let settings=loadSettings(settingsStorage,settingsDefaults);
+const settingsDialog=$('settings-dialog');
 const SAVE_KEY='crownfold-riftfront-save-v1',QUICK_SAVE_KEY='crownfold-riftfront-quick-save-v1';
 let currentSaveKey=SAVE_KEY;
 const safeSave=()=>{try{localStorage.setItem(currentSaveKey,serialize(s));return true;}catch{return false;}};
@@ -16,8 +21,8 @@ const keys=new Set(),input={x:0,z:0,sprint:false,jump:false,aim:false,fire:false
 const noteEls=[];let commanderDrag=null;
 const selectBox=document.getElementById('command-select-box');
 try{renderer=new WorldRenderer(canvas,quality);}catch(e){$('error').textContent=`3D renderer unavailable: ${e.message}`;$('error').classList.remove('hidden');}
-let audio=null;let weakBefore=0;
-function tone(freq=220,seconds=.1,kind='triangle',volume=.12,end=freq*.6){if(!audio)return;try{const o=audio.createOscillator(),g=audio.createGain(),now=audio.currentTime;o.type=kind;o.frequency.setValueAtTime(freq,now);o.frequency.exponentialRampToValueAtTime(Math.max(20,end),now+seconds);g.gain.setValueAtTime(volume,now);g.gain.exponentialRampToValueAtTime(.0001,now+seconds);o.connect(g);g.connect(audio.destination);o.start(now);o.stop(now+seconds+.01);}catch{}}
+let audio=null,masterGain=null;let weakBefore=0;
+function tone(freq=220,seconds=.1,kind='triangle',volume=.12,end=freq*.6){if(!audio)return;try{const o=audio.createOscillator(),g=audio.createGain(),now=audio.currentTime;o.type=kind;o.frequency.setValueAtTime(freq,now);o.frequency.exponentialRampToValueAtTime(Math.max(20,end),now+seconds);g.gain.setValueAtTime(volume,now);g.gain.exponentialRampToValueAtTime(.0001,now+seconds);o.connect(g);g.connect(masterGain);o.start(now);o.stop(now+seconds+.01);}catch{}}
 function sound(name){if(name==='shoot')tone(s.player.weapon==='rail'?150:350,.09,'sawtooth',.04,45);if(name==='hit')tone(790,.10,'square',.025,360);if(name==='fold'){tone(145,.65,'sine',.15,800);tone(420,.37,'triangle',.07,120);}if(name==='echo')tone(1000,.55,'sine',.1,130);if(name==='notification')tone(430,.22,'sine',.045,620);if(name==='explosion')tone(80,.48,'sawtooth',.15,28);if(name==='build')tone(180,.2,'triangle',.08,390);}
 function updateContinue(){$('continue-game').disabled=!safeLoad(SAVE_KEY);$('continue-quick').disabled=!safeLoad(QUICK_SAVE_KEY);}
 updateContinue();
@@ -34,7 +39,7 @@ function start(kind='new'){
  setVisibility('menu',false);setVisibility('hud',true);setVisibility('commander-panel',false);setVisibility('build-panel',false);setVisibility('pause-overlay',false);setVisibility('help-overlay',false);setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);
  input.yaw=s.player.yaw;input.pitch=s.player.pitch;lastNotice=s.lastEvent;lastAutoSave=performance.now();bank=0;zoneBefore=s.zone;eraBefore=s.era;healthBefore=s.player.hp;shotBefore=s.player.shots;weakBefore=s.player.weakHits||0;
  if(kind==='new')s.messages.push({id:++s.lastEvent,text:'WELCOME TO THE UNBROKEN FRONTIER. HEAD FOR A RIFT GATE.',type:'command',at:0});
- pointer();refresh(true);
+ syncAudio(true);pointer();refresh(true);
 }
 $('rpg-button').onclick=()=>toggleRpg('inventory');$('close-rpg').onclick=()=>toggleRpg(null);$('dialogue-leave').onclick=()=>closeDialogue();for(const b of document.querySelectorAll('[data-rpg-tab]'))b.onclick=()=>toggleRpg(b.dataset.rpgTab);
 $('new-game').onclick=()=>start('new');$('continue-game').onclick=()=>start('continue');$('continue-quick').onclick=()=>start('continue-quick');$('quick-operation').onclick=()=>start('drop');$('quick-war').onclick=()=>start('war');$('fold-target').onclick=()=>{selectEpoch(s);refresh(true);};
@@ -42,7 +47,38 @@ $('pause-button').onclick=()=>togglePause();$('resume').onclick=()=>togglePause(
 $('abort-operation').onclick=()=>{if(s.zone==='operation'){finishOperation(s,false);safeSave();toast('OPERATION ABORTED · PARTIAL SALVAGE RETAINED','warning');togglePause(false);}};
 $('save-button').onclick=()=>{const saved=safeSave();toast(saved?'FRONTIER PROGRESS SAVED':'SAVING IS BLOCKED BY YOUR BROWSER',saved?'success':'warning');};
 $('quality-button').onclick=()=>{quality=quality==='high'?'standard':'high';renderer?.dispose();renderer=new WorldRenderer(canvas,quality);$('quality-button').textContent=`QUALITY: ${quality.toUpperCase()}`;toast('RENDERER QUALITY UPDATED');};
-$('sound-button').onclick=()=>{if(audio){audio.close();audio=null;$('sound-button').textContent='♫ SOUND OFF';}else{try{audio=new(window.AudioContext||window.webkitAudioContext)();$('sound-button').textContent='♫ SOUND ON';tone(350,.22,'sine',.09,660);}catch{toast('SOUND NOT AVAILABLE');}}};
+function syncAudio(userGesture=false){
+ if(userGesture&&settings.soundEnabled&&!audio){try{audio=new(window.AudioContext||window.webkitAudioContext)();masterGain=audio.createGain();masterGain.connect(audio.destination);}catch{audio=null;masterGain=null;toast('SOUND NOT AVAILABLE','warning');}}
+ if(masterGain){masterGain.gain.setValueAtTime(masterVolume(settings),audio.currentTime);if(userGesture&&settings.soundEnabled)audio.resume().catch(()=>toast('SOUND NOT AVAILABLE','warning'));}
+ $('sound-button').textContent=settings.soundEnabled?'♫ SOUND ON':'♫ SOUND OFF';$('sound-button').setAttribute('aria-pressed',String(settings.soundEnabled));
+}
+function refreshSettings(){
+ $('setting-sensitivity').value=settings.sensitivity;$('sensitivity-value').textContent=settings.sensitivity.toFixed(2)+'×';
+ $('setting-volume').value=Math.round(settings.volume*100);$('volume-value').textContent=Math.round(settings.volume*100)+'%';
+ $('setting-invert').checked=settings.invertY;$('setting-sound').checked=settings.soundEnabled;$('setting-effects').checked=settings.reduceEffects;
+ document.body.classList.toggle('reduced-hud-effects',settings.reduceEffects);
+}
+function changeSettings(patch,userGesture=true){
+ settings=normalizeSettings({...settings,...patch},settingsDefaults);refreshSettings();syncAudio(userGesture);
+ $('settings-status').textContent=saveSettings(settingsStorage,settings)?'Saved on this browser. Campaign saves are unchanged.':'Settings work for this session, but browser storage is unavailable.';
+}
+function openSettings(){
+ // Entry points are the title and pause menu. Closing never resumes combat.
+ if(active&&!paused||settingsDialog.open)return;
+ keys.clear();input.fire=false;input.aim=false;document.body.classList.remove('aiming');exitPointer();refreshSettings();settingsDialog.showModal();
+}
+$('title-settings').onclick=openSettings;$('pause-settings').onclick=openSettings;
+$('settings-close').onclick=()=>settingsDialog.close();
+settingsDialog.addEventListener('close',()=>{keys.clear();input.fire=false;});
+$('setting-sensitivity').oninput=e=>changeSettings({sensitivity:Number(e.target.value)});
+$('setting-volume').oninput=e=>changeSettings({volume:Number(e.target.value)/100});
+$('setting-invert').onchange=e=>changeSettings({invertY:e.target.checked});
+$('setting-sound').onchange=e=>changeSettings({soundEnabled:e.target.checked});
+$('setting-effects').onchange=e=>changeSettings({reduceEffects:e.target.checked});
+$('settings-reset').onclick=()=>changeSettings(settingsDefaults);
+$('settings-test').onclick=()=>{syncAudio(true);if(settings.soundEnabled&&settings.volume>0)tone(350,.22,'sine',.09,660);$('settings-status').textContent=!settings.soundEnabled||settings.volume===0?'Sound is muted. Enable sound and raise the volume to hear the test.':audio?'Playing a short tone at your chosen volume.':'Audio is unavailable in this browser.';};
+$('sound-button').onclick=()=>changeSettings({soundEnabled:!settings.soundEnabled});
+refreshSettings();syncAudio();
 $('help-button').onclick=()=>toggleHelp();$('help-close').onclick=()=>toggleHelp(false);
 $('expand-map').onclick=()=>{mapExpanded=!mapExpanded;document.body.classList.toggle('map-expanded',mapExpanded);if(mapExpanded){exitPointer();}else{pointer();}};
 $('close-build').onclick=()=>toggleBuild(false);$('recruit-button').onclick=()=>{if(recruit(s)){sound('build');toggleBuild(false);}else toast('NOT ENOUGH SCRAP OR SQUAD CAP REACHED','warning');};
@@ -193,8 +229,11 @@ function refreshAbilities(){const strip=$('ability-strip');if(!active)return;con
 
 function keyFor(ev){return ev.code||ev.key;}
 window.addEventListener('keydown',e=>{
- const key=keyFor(e);if(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyB','KeyM'].includes(key))e.preventDefault();
- keys.add(key);if(e.repeat||!active)return;
+ if(settingsDialog.open||!active)return;
+ const key=keyFor(e);
+ if(paused){if(key==='Escape'&&!e.repeat)togglePause(false);return;}
+ if(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyB','KeyM'].includes(key))e.preventDefault();
+ keys.add(key);if(e.repeat)return;
  if(key==='Escape'){if(lockMenu)closeLock();else if(dialogue)closeDialogue();else if(rpgMenu)toggleRpg(null);else if(help)toggleHelp(false);else if(buildMenu)toggleBuild(false);else if(commander)toggleCommander();else if(mapExpanded){mapExpanded=false;document.body.classList.remove('map-expanded');pointer();}else togglePause();return;}
  if(paused||help||buildMenu||dialogue||lockMenu)return;
  if(['KeyI','KeyP','KeyL','KeyO','KeyU','KeyY'].includes(key)){toggleRpg(({KeyI:'inventory',KeyP:'perks',KeyL:'journal',KeyO:'atlas',KeyU:'homestead',KeyY:'weave'})[key]);return;}
@@ -258,8 +297,7 @@ canvas.addEventListener('pointerup',e=>{if(e.button===0)input.fire=false;if(e.bu
 window.addEventListener('pointerup',()=>{input.fire=false;});
 window.addEventListener('mousemove',e=>{
  if(!active||paused||commander||help||buildMenu||rpgMenu||dialogue||lockMenu)return;
- if(document.pointerLockElement===canvas){input.yaw+=e.movementX*.0024;input.pitch=clamp(input.pitch-e.movementY*.0021,-.92,.53);}
- else if(e.buttons&2){input.yaw+=e.movementX*.0024;input.pitch=clamp(input.pitch-e.movementY*.0021,-.92,.53);}
+ if(document.pointerLockElement===canvas||e.buttons&2){const delta=aimDelta(e.movementX,e.movementY,settings);input.yaw+=delta.yaw;input.pitch=clamp(input.pitch+delta.pitch,-.92,.53);}
 });
 canvas.addEventListener('wheel',e=>{if(commander){e.preventDefault();renderer.tactical.zoom=clamp(renderer.tactical.zoom+(e.deltaY>0?10:-10),45,132);return;}if(active&&!paused&&!rpgMenu&&!dialogue&&!lockMenu&&!help&&!buildMenu){e.preventDefault();const all=Object.keys(WEAPONS),idx=all.indexOf(s.player.weapon);setWeapon(s,all[(idx+(e.deltaY>0?1:all.length-1))%all.length]);sound('notification');}},{passive:false});
 function updateInput(){input.x=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);input.z=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0);input.jump=keys.has('Space');input.sprint=keys.has('ShiftLeft')||keys.has('ShiftRight');input.crouch=keys.has('ControlLeft')||keys.has('ControlRight');input.commander=commander; if(active)s.player.pitch=input.pitch;}
@@ -324,5 +362,5 @@ function frame(now){const dt=Math.min(.06,(now-last)/1000||.016);last=now;
 }
 window.addEventListener('beforeunload',()=>{if(active&&s.zone==='frontier')safeSave();});
 // Test/dev inspector: read-only game objects and deterministic module methods, no account data.
-Object.defineProperty(window,'__riftfront',{get:()=>({state:s,renderer,active,paused,commander,rpgMenu,dialogue,sim:{stepGame,enterOperation,finishOperation,issueOrder,fold,echo,addBuilding,castAbility,dodge,serialize,restore},ui:{toggleRpg,openDialogue,renderRpg}})});
+Object.defineProperty(window,'__riftfront',{get:()=>({state:s,renderer,active,paused,commander,rpgMenu,dialogue,settings:{...settings},audioStatus:{state:audio?.state??'not-started',gain:masterGain?.gain.value??0},sim:{stepGame,enterOperation,finishOperation,issueOrder,fold,echo,addBuilding,castAbility,dodge,serialize,restore},ui:{toggleRpg,openDialogue,renderRpg}})});
 requestAnimationFrame(frame);
