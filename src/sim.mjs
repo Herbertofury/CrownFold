@@ -143,17 +143,18 @@ export function resupply(s){const p=s.player;if(p.resupplyCooldown>0||s.inventor
 export function applyExplosion(s,x,z,damage=115,radius=9){damage*=rpgStat(s,'blast');effect(s,'explosion',x,z,{radius});if(s.war)warExplosion(s,x,z,damage,radius);for(const e of s.enemies)if(e.hp>0){const d=dist(e,{x,z});if(d<radius+ENEMIES[e.kind].radius)hitEnemy(s,e,damage*(1-clamp(d/radius,0,.9)),'player');}}
 export function consumableStatus(s,type){
  const spec={medkit:['BIOFOAM','hp','maxHp','HEALTH',rpgStat(s,'medkit')],ration:['TRAIL RATIONS','hunger',null,'HUNGER',54],water:['CLEAN WATER','thirst',null,'THIRST',59]}[type];
- if(!spec)return null;
+ if(!Array.isArray(spec))return null;
  const [name,meter,maxKey,label,potency]=spec,p=s.player,max=maxKey?p[maxKey]:100,current=p[meter],count=s.inventory[type];
  const recovery=Number.isFinite(current)&&Number.isFinite(max)?Math.max(0,Math.min(potency,max-current)):0;
  const reason=p.hp<=0?'INCAPACITATED':!(count>=1)?'OUT OF STOCK':recovery<=0?'ALREADY FULL':null;
- return {name,meter,label,count,recovery,reason,usable:reason===null};
+ const recoveryText=recovery>0&&recovery<.1?'<0.1':String(Number(recovery.toFixed(1)));
+ return {name,meter,label,count,recovery,recoveryText,reason,usable:reason===null};
 }
 export function useConsumable(s,type){
  const info=consumableStatus(s,type);if(!info)return false;
  if(!info.usable){emit(s,`${info.name} / ${info.reason}`,'warning');return false;}
  s.inventory[type]--;s.player[info.meter]+=info.recovery;
- emit(s,`${info.name} / +${Number(info.recovery.toFixed(1))} ${info.label}`,'success');return true;
+ emit(s,`${info.name} / +${info.recoveryText} ${info.label}`,'success');return true;
 }
 export function echo(s){const p=s.player;if(s.inventory.flux<28||p.echoCooldown>0)return false;const target=p.memories.find(q=>q.at<=s.time-4.8)||p.memories[0];if(!target||s.time-target.at<2)return false;s.inventory.flux-=28;p.x=target.x;p.z=target.z;p.y=terrainHeight(p.x,p.z,s.seed,s.zone);p.hp=Math.max(p.hp,Math.min(p.maxHp,target.hp));p.shield=Math.max(p.shield,target.shield);p.echoCooldown=24*rpgStat(s,'cooldowns');p.invulnerable=.9;s.stats.echoes++;effect(s,'echo',p.x,p.z);emit(s,'ECHO / FIVE SECONDS RECLAIMED','success');return true;}
 function rotateAround(o,c,dir=1){const x=o.x-c.x,z=o.z-c.z;o.x=c.x-z*dir;o.z=c.z+x*dir;if('tx'in o){const tx=o.tx-c.x,tz=o.tz-c.z;o.tx=c.x-tz*dir;o.tz=c.z+tx*dir;}}
