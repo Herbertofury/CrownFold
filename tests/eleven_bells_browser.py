@@ -49,6 +49,8 @@ with sync_playwright() as pw:
         checks['briefing_expansion_and_button_focus_survive_refresh'] = page.evaluate('''
           document.querySelector('#war-siege-brief').open && document.activeElement.id === 'war-track-sortie'
         ''')
+        page.screenshot(path=str(OUT / 'eleven-bells-sortie.png'))
+        page.locator('#war-siege-brief').scroll_into_view_if_needed()
         page.screenshot(path=str(OUT / 'eleven-bells-briefing.png'))
         page.keyboard.press('Tab')
         page.wait_for_function('!window.__riftfront.commander')
@@ -121,6 +123,7 @@ with sync_playwright() as pw:
         page.keyboard.press('c')
         page.wait_for_function('window.__riftfront.rpgMenu')
         checks['chronicle_shows_saved_report'] = 'Eleven Bells extracted.' in page.locator('#rpg-overlay').inner_text()
+        page.locator('#rpg-content .rpg-summary').filter(has_text='Eleven Bells extracted.').scroll_into_view_if_needed()
         page.screenshot(path=str(OUT / 'eleven-bells-debrief.png'))
         page.keyboard.press('Escape')
         page.wait_for_function('!window.__riftfront.rpgMenu')

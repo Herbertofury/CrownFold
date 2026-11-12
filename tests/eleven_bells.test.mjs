@@ -165,3 +165,11 @@ test('leaving a sortie is an explicit no-reward choice that opens a later unlock
  assert.equal(w.expedition.sortieId,'bellkeepers');w.victory='enemy';assert.equal(skipWarSortie(s),false);
  const other=makeWar(4);startWarExpedition(other);assert.equal(skipWarSortie(other),false);
 });
+
+
+test('winning also bounds the Chronicle after both the field report and liberation entry',()=>{
+ const s=makeWar();s.temporal.chronicleLog=Array.from({length:40},(_,i)=>`Entry ${i}`);
+ finishOperation(s,true);assert.equal(s.temporal.chronicleLog.length,40);
+ assert.ok(s.temporal.chronicleLog.some(x=>x.startsWith('Eleven Bells extracted.')));
+ assert.ok(s.temporal.chronicleLog.at(-1).startsWith('Liberated '));
+});
