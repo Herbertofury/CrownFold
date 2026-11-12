@@ -3,6 +3,7 @@
 import {makeRPG,generateBounty,restoreRPG,rpgStat,grantXP,rpgEvent,discoverNearby,markDiscovered,openChest,LANDMARKS,LOCKBOXES,NPCS,DUNGEON_BY_ID,DUNGEONS,perkRank} from './rpg.mjs';
 import {ERA_ORDER,ERAS,CHRONICLE,availableRifts,eraSites,makeTemporal,migrateTemporal,epochSeed,validEra,cycleFacetEra,stampFacet,facetAt,temporalModifier} from './temporal.mjs';
 import {WAR_CAMPAIGNS,createWarfront,trainBattalion,constructWarBuilding,warOrder,stepWarfront,warObjective,bellSiegeReport,signalWarExtraction,traceWarShot,applyWarShot,warExplosion} from './war.mjs';
+import {makeWarCheckpoint,restoreWarCheckpoint} from './war-checkpoint.mjs';
 export const SEED = 0xC0F01D;
 export const TAU = Math.PI * 2;
 export const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
@@ -350,7 +351,7 @@ export function stepGame(s,input={},dt=1/30){if(!s||dt<=0)return s;dt=Math.min(d
   s.buildings=s.buildings.filter(b=>b.hp>0);
   spawnDirector(s,dt);return s;
 }
-export function serialize(s){return JSON.stringify({rpg:{...s.rpg,dialogue:null,status:{cloak:0,rally:0},abilityCooldowns:{}},version:s.version,seed:s.zone==='operation'?epochSeed(s.temporal.baseSeed,s.temporal.returnEra):s.seed,era:s.zone==='operation'?s.temporal.returnEra:s.era,temporal:s.temporal,dayTime:s.dayTime,weather:s.weather,inventory:s.inventory,player:{...s.player,x:s.zone!=='frontier'?s.lastZonePos.x:s.player.x,z:s.zone!=='frontier'?s.lastZonePos.z:s.player.z,memories:[]},squad:s.zone!=='frontier'?s.squad.map((u,i)=>({...u,x:s.lastZonePos.x+(i-2)*2,z:s.lastZonePos.z+3+i%2,y:terrainHeight(s.lastZonePos.x+(i-2)*2,s.lastZonePos.z+3+i%2,s.seed,'frontier'),order:'follow'})):s.squad,buildings:s.buildings.filter(b=>b.zone==='frontier'),harvested:s.harvested,cleared:s.cleared,stats:s.stats,nextId:s.nextId});}
+export function serialize(s){return JSON.stringify({warCheckpoint:makeWarCheckpoint(s),rpg:{...s.rpg,dialogue:null,status:{cloak:0,rally:0},abilityCooldowns:{}},version:s.version,seed:s.zone==='operation'?epochSeed(s.temporal.baseSeed,s.temporal.returnEra):s.seed,era:s.zone==='operation'?s.temporal.returnEra:s.era,temporal:s.temporal,dayTime:s.dayTime,weather:s.weather,inventory:s.inventory,player:{...s.player,x:s.zone!=='frontier'?s.lastZonePos.x:s.player.x,z:s.zone!=='frontier'?s.lastZonePos.z:s.player.z,memories:[]},squad:s.zone!=='frontier'?s.squad.map((u,i)=>({...u,x:s.lastZonePos.x+(i-2)*2,z:s.lastZonePos.z+3+i%2,y:terrainHeight(s.lastZonePos.x+(i-2)*2,s.lastZonePos.z+3+i%2,s.seed,'frontier'),order:'follow'})):s.squad,buildings:s.buildings.filter(b=>b.zone==='frontier'),harvested:s.harvested,cleared:s.cleared,stats:s.stats,nextId:s.nextId});}
 export function restore(raw){let data;try{data=typeof raw==='string'?JSON.parse(raw):raw;}catch{return null;}if(!data||data.version!==1||!Number.isFinite(data.seed)||!data.inventory||!data.player||!Array.isArray(data.buildings)||!Array.isArray(data.squad))return null;
   const s=createGame(data.seed);s.temporal=migrateTemporal(data.temporal,data.seed);s.era=validEra(data.era)?data.era:'medieval';s.seed=epochSeed(s.temporal.baseSeed,s.era);s.rpg=restoreRPG(data.rpg,s);s.dayTime=Number.isFinite(data.dayTime)?data.dayTime:s.dayTime;
   for(const name of Object.keys(s.inventory))if(Number.isFinite(data.inventory[name]))s.inventory[name]=clamp(data.inventory[name],0,100000);
@@ -362,5 +363,8 @@ export function restore(raw){let data;try{data=typeof raw==='string'?JSON.parse(
   s.cleared=Array.isArray(data.cleared)?data.cleared.filter(v=>typeof v==='string'):[];
   if(data.stats&&typeof data.stats==='object')for(const k of Object.keys(s.stats))if(Number.isFinite(data.stats[k]))s.stats[k]=clamp(data.stats[k],0,1000000);
   if(Number.isSafeInteger(data.nextId))s.nextId=clamp(data.nextId,100,10000000);
-  emit(s,'SURVIVAL SAVE RESTORED','success');return s;
+  if(data.warCheckpoint){
+    if(restoreWarCheckpoint(s,data.warCheckpoint)){emit(s,'WAR CHECKPOINT RESTORED / THE SIEGE CONTINUES','success');return s;}
+    s.checkpointWarning=true;emit(s,'WAR CHECKPOINT UNAVAILABLE / FRONTIER PROGRESS RECOVERED','warning');
+  }else emit(s,'SURVIVAL SAVE RESTORED','success');return s;
 }

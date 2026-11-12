@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGame,WEAPONS,reloadDuration,reload,setWeapon,stepGame,serialize,restore} from '../src/sim.mjs';
+import {createGame,enterOperation,WEAPONS,reloadDuration,reload,setWeapon,stepGame,serialize,restore} from '../src/sim.mjs';
 import {WEAPON_ROLES,weaponCard,reloadProgress} from '../src/arsenal.mjs';
 
 test('all six weapon cards describe actual simulation stats without changing state',()=>{
@@ -33,5 +33,11 @@ test('all six reloads display bounded progress and complete in the existing simu
 });
 test('weapon choice and existing reload survive frontier save roundtrip',()=>{
  const s=createGame();setWeapon(s,'cryo');s.player.ammo.cryo=0;reload(s);const restored=restore(serialize(s));
+ assert.equal(restored.player.weapon,'cryo');assert.equal(restored.player.reload,s.player.reload);assert.equal(restored.player.ammo.cryo,0);assert.equal(restored.player.reserve.cryo,120);
+});
+
+test('arsenal weapon and reload survive a complete active War Rift checkpoint',()=>{
+ const s=createGame();enterOperation(s,3);setWeapon(s,'cryo');s.player.ammo.cryo=0;reload(s);
+ const restored=restore(serialize(s));assert.ok(restored.war);assert.equal(restored.operation.kind,'war');
  assert.equal(restored.player.weapon,'cryo');assert.equal(restored.player.reload,s.player.reload);assert.equal(restored.player.ammo.cryo,0);assert.equal(restored.player.reserve.cryo,120);
 });
