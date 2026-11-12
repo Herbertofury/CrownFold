@@ -138,9 +138,10 @@ test('withdrawal writes an honest bounded Chronicle report, does not claim a win
  assert.equal(restored.zone,'frontier');assert.equal(restored.war,null);
 });
 
-test('saving an ongoing siege keeps the established frontier-return contract and no mission buffs leak',()=>{
+test('saving an ongoing siege resumes choices without leaking buffs into the next war',()=>{
  const s=makeWar();recoverLedger(s);const loaded=restore(serialize(s));
- assert.equal(loaded.zone,'frontier');assert.equal(loaded.war,null);assert.equal(loaded.temporal.insight,4);
+ assert.equal(loaded.zone,'operation');assert.equal(loaded.war.bellSiege.outcomes.ledger,'success');assert.equal(loaded.temporal.insight,4);
+ finishOperation(loaded,false);
  assert.ok(enterOperation(loaded,3));assert.equal(loaded.war.bellSiege.outcomes.ledger,'pending');assert.equal(loaded.war.extraction.target,36);
 });
 
