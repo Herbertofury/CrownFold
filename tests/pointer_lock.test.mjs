@@ -8,7 +8,7 @@ function setup(){
  const events=new Map();let requested=0,exited=0;
  const canvas={requestPointerLock(){requested++;return Promise.resolve();}};
  const document={pointerLockElement:null,addEventListener(name,fn){events.set(name,fn);},exitPointerLock(){exited++;this.pointerLockElement=null;}};
- const state={canvas,document,commander:false,paused:false,buildMenu:false,help:false,rpgMenu:false,dialogue:false,lockMenu:false,active:true};
+ const state={arsenalDialog:{open:false},canvas,document,commander:false,paused:false,buildMenu:false,help:false,rpgMenu:false,dialogue:false,lockMenu:false,active:true};
  vm.createContext(state);vm.runInContext(code,state);
  return {state,events,counts:()=>({requested,exited})};
 }
@@ -25,4 +25,9 @@ test('normal gameplay keeps pointer lock and rejected browser requests are handl
  state.canvas.requestPointerLock=()=>Promise.reject(new Error('Escape cooldown'));
  state.pointer();await new Promise(resolve=>setImmediate(resolve));
  state.paused=true;state.canvas.requestPointerLock=()=>{throw Error('Must not request during pause');};state.pointer();
+});
+
+test('late pointer lock is released while inspecting the arsenal',()=>{
+ const {state,events,counts}=setup();state.pointer();state.arsenalDialog.open=true;state.document.pointerLockElement=state.canvas;events.get('pointerlockchange')();
+ assert.deepEqual(counts(),{requested:1,exited:1});state.pointer();assert.equal(counts().requested,1);
 });

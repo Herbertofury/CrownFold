@@ -7,6 +7,7 @@ import {COMMANDER_HERITAGES,LOST_TECH,MAX_WEAVE_SLOTS,WAR_POWERS,WEAVE_SYNERGIES
 import {BATTALIONS,WAR_BUILDINGS,WAR_CAMPAIGNS,WAR_STANCES,WAR_SUPPORT,trainBattalion,constructWarBuilding,warSummary,selectWarBattalion,selectWarBattalions,setWarControlGroup,recallWarControlGroup,setWarStance,warCastPower,callWarSupport,signalWarExtraction,canSignalWarExtraction,warObjective,skipWarSortie} from './war.mjs';
 import {selectEpoch} from './sim.mjs';
 import {DEFAULT_SETTINGS,loadSettings,saveSettings,normalizeSettings,aimDelta,masterVolume} from './settings.mjs';
+import {weaponCard,reloadProgress} from './arsenal.mjs';
 const $=id=>document.getElementById(id),canvas=$('world');
 const runtime=tacticalRuntime();
 $('tactics-runtime').textContent=runtime.backend==='rust-wasm'?'RUST TACTICS · WASM':'JS TACTICS · COMPATIBILITY MODE';
@@ -14,7 +15,8 @@ $('tactics-runtime').title=runtime.reason||'Cover collision and formation routes
 const settingsDefaults={...DEFAULT_SETTINGS,reduceEffects:window.matchMedia('(prefers-reduced-motion: reduce)').matches};
 let settingsStorage=null;try{settingsStorage=window.localStorage;}catch{}
 let settings=loadSettings(settingsStorage,settingsDefaults);
-const settingsDialog=$('settings-dialog');
+const settingsDialog=$('settings-dialog'),arsenalDialog=$('arsenal-dialog');
+let arsenalChoice=null;
 const SAVE_KEY='crownfold-riftfront-save-v1',QUICK_SAVE_KEY='crownfold-riftfront-quick-save-v1';
 let currentSaveKey=SAVE_KEY;
 const safeSave=()=>{try{localStorage.setItem(currentSaveKey,serialize(s));return true;}catch{return false;}};
@@ -30,7 +32,7 @@ function tone(freq=220,seconds=.1,kind='triangle',volume=.12,end=freq*.6){if(!au
 function sound(name){if(name==='shoot')tone(s.player.weapon==='rail'?150:350,.09,'sawtooth',.04,45);if(name==='hit')tone(790,.10,'square',.025,360);if(name==='fold'){tone(145,.65,'sine',.15,800);tone(420,.37,'triangle',.07,120);}if(name==='echo')tone(1000,.55,'sine',.1,130);if(name==='notification')tone(430,.22,'sine',.045,620);if(name==='explosion')tone(80,.48,'sawtooth',.15,28);if(name==='build')tone(180,.2,'triangle',.08,390);}
 function updateContinue(){$('continue-game').disabled=!safeLoad(SAVE_KEY);$('continue-quick').disabled=!safeLoad(QUICK_SAVE_KEY);}
 updateContinue();
-const canCapturePointer=()=>!commander&&!paused&&!buildMenu&&!help&&!rpgMenu&&!dialogue&&!lockMenu&&active;
+const canCapturePointer=()=>!arsenalDialog.open&&!commander&&!paused&&!buildMenu&&!help&&!rpgMenu&&!dialogue&&!lockMenu&&active;
 function pointer(){if(canCapturePointer()&&document.pointerLockElement!==canvas){try{
  // Pointer-lock requests resolve asynchronously. Rejections after Escape are normal.
  const request=canvas.requestPointerLock();request?.catch(()=>{});
@@ -95,6 +97,43 @@ $('settings-reset').onclick=()=>changeSettings(settingsDefaults);
 $('settings-test').onclick=()=>{syncAudio(true);if(settings.soundEnabled&&settings.volume>0)tone(350,.22,'sine',.09,660);$('settings-status').textContent=!settings.soundEnabled||settings.volume===0?'Sound is muted. Enable sound and raise the volume to hear the test.':audio?'Playing a short tone at your chosen volume.':'Audio is unavailable in this browser.';};
 $('sound-button').onclick=()=>changeSettings({soundEnabled:!settings.soundEnabled});
 refreshSettings();syncAudio();
+// Arsenal is a deliberately paused, inspect-before-equipping selection screen.
+function openArsenal(){
+ if(!active||paused||commander||buildMenu||help||mapExpanded||rpgMenu||dialogue||lockMenu||arsenalDialog.open)return;
+ keys.clear();input.fire=false;input.aim=false;input.x=0;input.z=0;bank=0;document.body.classList.remove('aiming');exitPointer();
+ arsenalChoice=s.player.weapon;const grid=$('arsenal-grid');grid.textContent='';
+ for(const [index,id] of Object.keys(WEAPONS).entries()){
+  const info=weaponCard(s.player,id),b=uiElement('button','arsenal-card');b.type='button';b.dataset.weapon=id;
+  b.append(uiElement('span','arsenal-role',`${index+1} / ${info.role}`),uiElement('strong','',info.name),uiElement('p','',info.description));
+  const stats=uiElement('span','arsenal-stats');stats.append(uiElement('span','',`${info.damage} DMG`),uiElement('span','',`${info.range} RANGE`),uiElement('span','',`${info.reload} RELOAD`));b.append(stats);
+  b.append(uiElement('span','arsenal-ammo',`${info.ammo} / ${info.reserve} ROUNDS`),uiElement('span',`arsenal-state${info.status==='OUT OF AMMO'?' empty':''}`,info.equipped?'EQUIPPED · '+info.status:info.status));
+  b.onclick=()=>chooseArsenal(id);grid.append(b);
+ }
+ chooseArsenal(arsenalChoice);arsenalDialog.showModal();grid.querySelector('[aria-pressed="true"]').focus();
+}
+function chooseArsenal(id){
+ if(!Object.hasOwn(WEAPONS,id))return;arsenalChoice=id;
+ for(const b of $('arsenal-grid').children)b.setAttribute('aria-pressed',String(b.dataset.weapon===id));
+ const info=weaponCard(s.player,id);$('arsenal-selection').textContent=`${info.name} · ${info.status}${s.player.reload>0&&id!==s.player.weapon?' · Switching cancels the current reload.':''}`;
+ $('arsenal-equip').textContent=id===s.player.weapon?'KEEP WEAPON / RETURN':'EQUIP / RETURN';
+}
+function closeArsenal(equip=false){
+ if(!arsenalDialog.open)return;
+ if(equip&&setWeapon(s,arsenalChoice))sound('notification');
+ arsenalDialog.close();
+}
+$('arsenal-button').onclick=openArsenal;$('arsenal-cancel').onclick=()=>closeArsenal();$('arsenal-equip').onclick=()=>closeArsenal(true);
+arsenalDialog.addEventListener('close',()=>{keys.clear();input.fire=false;input.aim=false;bank=0;arsenalChoice=null;refresh(true);pointer();});
+arsenalDialog.addEventListener('keydown',e=>{
+ // A closing key must not bubble back into the global opener.
+ e.stopPropagation();
+ const cards=[...$('arsenal-grid').children],controls=[...arsenalDialog.querySelectorAll('button')];
+ if(e.code==='Backquote'){e.preventDefault();if(!e.repeat)closeArsenal();return;}
+ if(/^Digit[1-6]$/.test(e.code)){e.preventDefault();const card=cards[Number(e.code.slice(-1))-1];chooseArsenal(card.dataset.weapon);card.focus();return;}
+ if(e.key.startsWith('Arrow')){e.preventDefault();const columns=getComputedStyle($('arsenal-grid')).gridTemplateColumns.split(' ').length,i=cards.findIndex(b=>b.dataset.weapon===arsenalChoice),delta=e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:e.key==='ArrowUp'?-columns:columns;const card=cards[(i+delta+cards.length)%cards.length];chooseArsenal(card.dataset.weapon);card.focus();return;}
+ if(e.key==='Enter'&&cards.includes(document.activeElement)){e.preventDefault();if(!e.repeat)closeArsenal(true);return;}
+ if(e.key==='Tab'){const first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
+});
 $('help-button').onclick=()=>toggleHelp();$('help-close').onclick=()=>toggleHelp(false);
 $('expand-map').onclick=()=>{mapExpanded=!mapExpanded;document.body.classList.toggle('map-expanded',mapExpanded);if(mapExpanded){exitPointer();}else{pointer();}};
 $('close-build').onclick=()=>toggleBuild(false);$('recruit-button').onclick=()=>{if(recruit(s)){sound('build');toggleBuild(false);}else toast('NOT ENOUGH SCRAP OR SQUAD CAP REACHED','warning');};
@@ -252,7 +291,7 @@ function refreshAbilities(){const strip=$('ability-strip');if(!active)return;con
 
 function keyFor(ev){return ev.code||ev.key;}
 window.addEventListener('keydown',e=>{
- if(settingsDialog.open||!active)return;
+ if(settingsDialog.open||arsenalDialog.open||!active)return;
  const key=keyFor(e);
  if(paused){if(key==='Escape'&&!e.repeat)togglePause(false);return;}
  if(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyB','KeyM'].includes(key))e.preventDefault();
@@ -264,6 +303,7 @@ window.addEventListener('keydown',e=>{
  if(key==='KeyT'){selectEpoch(s);sound('fold');refresh(true);return;}if(key==='KeyC'){toggleRpg('timeline');return;}
  if(key==='KeyX'){if(dodge(s))sound('echo');else toast('DODGE REQUIRES STAMINA / READY COOLDOWN','warning');return;}
  if(/^Digit[4-9]$/.test(key)&&!commander){const id=Object.keys(ABILITIES).find(id=>ABILITIES[id].key===key.slice(-1));if(castAbility(s,id))sound('fold');else toast('ART UNAVAILABLE / FLUX OR COOLDOWN','warning');return;}
+ if(key==='Backquote'&&!commander){openArsenal();return;}
  if(key==='Tab'){toggleCommander();return;}if(key==='Backquote'&&commander){setCommanderCompact(!commanderCompact);return;}
  if(commander&&s.war&&/^Digit[1-5]$/.test(key)&&(e.ctrlKey||e.altKey)){const n=Number(key.slice(-1)),ok=e.ctrlKey?setWarControlGroup(s,n):recallWarControlGroup(s,n);if(ok){toast(e.ctrlKey?`GROUP ${n} STORED`:`GROUP ${n} SELECTED`,'command');refreshWarCommands();}else toast('CONTROL GROUP EMPTY','warning');return;}
  if(key==='KeyB'){toggleBuild();return;}
@@ -287,7 +327,7 @@ window.addEventListener('keydown',e=>{
 window.addEventListener('keyup',e=>{keys.delete(keyFor(e));});
 window.addEventListener('blur',()=>{keys.clear();input.fire=false;});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-canvas.addEventListener('pointerdown',e=>{if(!active||paused||help||buildMenu||rpgMenu||dialogue||lockMenu)return;
+canvas.addEventListener('pointerdown',e=>{if(arsenalDialog.open||!active||paused||help||buildMenu||rpgMenu||dialogue||lockMenu)return;
   if(commander){
    if(e.button===2){const rect=canvas.getBoundingClientRect(),p=renderer.screenToGround(e.clientX-rect.left,e.clientY-rect.top,s);if(p){issueOrder(s,'move',p.x,p.z);sound('notification');}return;}
    if(e.button===0){commanderDrag={startX:e.clientX,startY:e.clientY,x:e.clientX,y:e.clientY,shift:e.shiftKey};return;}
@@ -319,10 +359,10 @@ canvas.addEventListener('pointerup',e=>{if(!commander||!commanderDrag||e.button!
 canvas.addEventListener('pointerup',e=>{if(e.button===0)input.fire=false;if(e.button===2){input.aim=false;document.body.classList.remove('aiming');}});
 window.addEventListener('pointerup',()=>{input.fire=false;});
 window.addEventListener('mousemove',e=>{
- if(!active||paused||commander||help||buildMenu||rpgMenu||dialogue||lockMenu)return;
+ if(arsenalDialog.open||!active||paused||commander||help||buildMenu||rpgMenu||dialogue||lockMenu)return;
  if(document.pointerLockElement===canvas||e.buttons&2){const delta=aimDelta(e.movementX,e.movementY,settings);input.yaw+=delta.yaw;input.pitch=clamp(input.pitch+delta.pitch,-.92,.53);}
 });
-canvas.addEventListener('wheel',e=>{if(commander){e.preventDefault();renderer.tactical.zoom=clamp(renderer.tactical.zoom+(e.deltaY>0?10:-10),45,132);return;}if(active&&!paused&&!rpgMenu&&!dialogue&&!lockMenu&&!help&&!buildMenu){e.preventDefault();const all=Object.keys(WEAPONS),idx=all.indexOf(s.player.weapon);setWeapon(s,all[(idx+(e.deltaY>0?1:all.length-1))%all.length]);sound('notification');}},{passive:false});
+canvas.addEventListener('wheel',e=>{if(arsenalDialog.open)return;if(commander){e.preventDefault();renderer.tactical.zoom=clamp(renderer.tactical.zoom+(e.deltaY>0?10:-10),45,132);return;}if(active&&!paused&&!rpgMenu&&!dialogue&&!lockMenu&&!help&&!buildMenu){e.preventDefault();const all=Object.keys(WEAPONS),idx=all.indexOf(s.player.weapon);setWeapon(s,all[(idx+(e.deltaY>0?1:all.length-1))%all.length]);sound('notification');}},{passive:false});
 function updateInput(){input.x=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0);input.z=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0);input.jump=keys.has('Space');input.sprint=keys.has('ShiftLeft')||keys.has('ShiftRight');input.crouch=keys.has('ControlLeft')||keys.has('ControlRight');input.commander=commander; if(active)s.player.pitch=input.pitch;}
 function refresh(force=false){if(!renderer||!active)return;
  const p=s.player,op=s.operation,o=op?.objectives[op.stage],warGoal=s.war?warObjective(s.war):null;
@@ -336,7 +376,8 @@ function refresh(force=false){if(!renderer||!active)return;
   set('objective-distance',warGoal?`${warGoal.detail} · ${Math.round(dist(p,warGoal))}M` :`${Math.round(dist(p,o))} M TO TARGET · ${Math.round(o.progress)}/${o.target}`);set('mission-time',fmtTime(op.timeLeft));progress('objective-progress-bar',warGoal?warGoal.progress/Math.max(1,warGoal.target):o.progress/o.target);
  }else if(s.dungeon){const d=s.dungeon,stage=d.bossDead?(d.looted?'COMPLETE':'CLAIM THE RELIC'):d.sigils.every(Boolean)?'SLAY THE GUARDIAN':'ACTIVATE THE TWO RELAYS';set('directive-label','DUNGEON QUEST');set('objective-phase',`DEEP VAULT / ${DUNGEON_BY_ID[d.id].name}`);set('objective-name',stage);set('objective-description',DUNGEON_BY_ID[d.id].subtitle);set('objective-distance',`${d.sigils.filter(Boolean).length}/2 RELAYS · ${d.bossDead?'BOSS DOWN':'GUARDIAN SEALED'}`);set('mission-time','NO TIME LIMIT');progress('objective-progress-bar',(d.sigils.filter(Boolean).length+(d.bossDead?1:0)+(d.looted?1:0))/4);
  }else{const quest=activeQuest(s),qState=quest&&s.rpg.quests[quest.id];set('directive-label',`${ERAS[s.era].period} / SURVIVAL`);set('objective-phase',quest?'ACTIVE QUEST · '+NPC_BY_ID[quest.giver].name:'00 // FRONTIER · NO TIME LIMIT');set('objective-name',quest?quest.name:s.rpg.bounty?.status==='active'?s.rpg.bounty.name:'HISTORY BELONGS TO THE BOLD');set('objective-description',quest?quest.description:s.rpg.bounty?.status==='active'?'Radiant bounty: '+s.rpg.bounty.goal.type+' '+s.rpg.bounty.goal.target+' ×'+s.rpg.bounty.goal.count:'Speak to settlers, enter ancient vaults, forge equipment, discover landmarks and command your troops. Press L for quests.');set('objective-distance',quest?`${qState.progress}/${quest.goal.count} ${quest.goal.type.toUpperCase()}`:s.rpg.bounty?.status==='active'?`${s.rpg.bounty.progress}/${s.rpg.bounty.goal.count} BOUNTY`:`${s.rpg.discovered.length}/${LANDMARKS.length} PLACES FOUND`);set('mission-time',quest?'QUEST TRACKED':s.rpg.bounty?.status==='active'?'BOUNTY ACTIVE':'FREE ROAM');progress('objective-progress-bar',quest?qState.progress/quest.goal.count:0);}
- const w=WEAPONS[p.weapon];set('weapon-name',w.name);set('weapon-type',({rifle:'ASSAULT RIFLE',scatter:'BREACH SHOTGUN',rail:'ARC MARKSMAN',smg:'AUTOMATIC SMG',cryo:'CRYO CASTER',launcher:'HEAVY LAUNCHER'})[p.weapon]);set('ammo',p.ammo[p.weapon]);set('reserve',p.reserve[p.weapon]);set('reload-status',p.reload>0?'RELOADING...':'1–3 CORE WEAPONS · WHEEL CYCLES ALL SIX');refreshAbilities();set('grenade-count',`×${p.grenades.toString().padStart(2,'0')}`);
+ const w=WEAPONS[p.weapon];set('weapon-name',w.name);set('weapon-type',({rifle:'ASSAULT RIFLE',scatter:'BREACH SHOTGUN',rail:'ARC MARKSMAN',smg:'AUTOMATIC SMG',cryo:'CRYO CASTER',launcher:'HEAVY LAUNCHER'})[p.weapon]);set('ammo',p.ammo[p.weapon]);set('reserve',p.reserve[p.weapon]);set('reload-status',p.reload>0?`RELOADING · ${p.reload.toFixed(1)}s`:p.ammo[p.weapon]===0?(p.reserve[p.weapon]>0?'EMPTY · R TO RELOAD':'OUT OF AMMO · SWITCH WEAPON'):p.ammo[p.weapon]<=Math.ceil(w.mag*.2)?'LOW AMMO · R TO RELOAD':'1–3 CORE · WHEEL ALL SIX');
+ setVisibility('reload-meter',p.reload>0);$('reload-meter').value=reloadProgress(p);$('reload-meter').setAttribute('aria-valuetext',p.reload>0?`${p.reload.toFixed(1)} seconds remaining`:'Reload complete');$('ammo').classList.toggle('ammo-low',p.ammo[p.weapon]<=Math.ceil(w.mag*.2));$('arsenal-button').disabled=commander;refreshAbilities();set('grenade-count',`×${p.grenades.toString().padStart(2,'0')}`);
  set('orbital-status',p.orbitalCooldown>0?`${Math.ceil(p.orbitalCooldown)}s COOLDOWN`:'45 FLUX');set('resupply-status',p.resupplyCooldown>0?`${Math.ceil(p.resupplyCooldown)}s COOLDOWN`:'18 SCRAP');setVisibility('abort-operation',s.zone==='operation');
  set('fold-status',p.foldCooldown>0?`${Math.ceil(p.foldCooldown)}s COOLDOWN`:'35 FLUX');set('echo-status',p.echoCooldown>0?`${Math.ceil(p.echoCooldown)}s COOLDOWN`:'28 FLUX');
  const indicators=$('ammo-indicators');if(force||indicators.childElementCount!==w.mag){indicators.textContent='';for(let i=0;i<w.mag;i++){const a=document.createElement('i');indicators.append(a);}}for(let i=0;i<indicators.childElementCount;i++)indicators.children[i].classList.toggle('empty',i>=p.ammo[p.weapon]);
@@ -369,13 +410,13 @@ function drawMinimap(){const c=$('minimap'),ctx=c.getContext('2d'),p=s.player,w=
   ctx.strokeStyle='#9fb8a0';ctx.strokeRect(.5,.5,w-1,h-1);
 }
 function frame(now){const dt=Math.min(.06,(now-last)/1000||.016);last=now;
- if(active&&commander&&!paused&&!rpgMenu&&!help&&!dialogue&&!lockMenu&&!buildMenu){
+ if(active&&!arsenalDialog.open&&commander&&!paused&&!rpgMenu&&!help&&!dialogue&&!lockMenu&&!buildMenu){
   const view=renderer.tactical,pan=(keys.has('ShiftLeft')?100:65)*dt;
   view.x=clamp(view.x+((keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0))*pan,-175,175);
   view.z=clamp(view.z+((keys.has('KeyS')||keys.has('ArrowDown')?1:0)-(keys.has('KeyW')||keys.has('ArrowUp')?1:0))*pan,-212,85);
  }
 
- if(renderer){if(active&&!paused&&!buildMenu&&!help&&!mapExpanded&&!rpgMenu&&!dialogue&&!lockMenu){updateInput();bank+=dt;let loops=0;while(bank>=1/30&&loops++<4){stepGame(s,input,1/30);bank-=1/30;}if(loops>=4)bank=0;}
+ if(renderer){if(active&&!arsenalDialog.open&&!paused&&!buildMenu&&!help&&!mapExpanded&&!rpgMenu&&!dialogue&&!lockMenu){updateInput();bank+=dt;let loops=0;while(bank>=1/30&&loops++<4){stepGame(s,input,1/30);bank-=1/30;}if(loops>=4)bank=0;}
    try{renderer.drawScene(s,{commander:active&&commander,move:input.x||input.z});}catch(err){console.error(err);$('error').textContent=`RENDER ERROR: ${err.message}`;$('error').classList.remove('hidden');}
  }
  if(active&&now-lastUi>140){lastUi=now;refresh();}
