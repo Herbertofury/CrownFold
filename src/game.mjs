@@ -25,8 +25,14 @@ function tone(freq=220,seconds=.1,kind='triangle',volume=.12,end=freq*.6){if(!au
 function sound(name){if(name==='shoot')tone(s.player.weapon==='rail'?150:350,.09,'sawtooth',.04,45);if(name==='hit')tone(790,.10,'square',.025,360);if(name==='fold'){tone(145,.65,'sine',.15,800);tone(420,.37,'triangle',.07,120);}if(name==='echo')tone(1000,.55,'sine',.1,130);if(name==='notification')tone(430,.22,'sine',.045,620);if(name==='explosion')tone(80,.48,'sawtooth',.15,28);if(name==='build')tone(180,.2,'triangle',.08,390);}
 function updateContinue(){$('continue-game').disabled=!safeLoad(SAVE_KEY);$('continue-quick').disabled=!safeLoad(QUICK_SAVE_KEY);}
 updateContinue();
-function pointer(){if(!commander&&!paused&&!buildMenu&&!help&&!rpgMenu&&!dialogue&&!lockMenu&&active&&document.pointerLockElement!==canvas){try{canvas.requestPointerLock();}catch{}}}
+const canCapturePointer=()=>!commander&&!paused&&!buildMenu&&!help&&!rpgMenu&&!dialogue&&!lockMenu&&active;
+function pointer(){if(canCapturePointer()&&document.pointerLockElement!==canvas){try{
+ // Pointer-lock requests resolve asynchronously. Rejections after Escape are normal.
+ const request=canvas.requestPointerLock();request?.catch(()=>{});
+}catch{}}}
 function exitPointer(){if(document.pointerLockElement===canvas)document.exitPointerLock();}
+// A pending request may finish after a menu opens; do not let it capture menu clicks.
+document.addEventListener('pointerlockchange',()=>{if(!canCapturePointer())exitPointer();});
 function setVisibility(id,show){$(id).classList.toggle('hidden',!show);}
 function start(kind='new'){
  const quick=['drop','war','continue-quick'].includes(kind),key=quick?QUICK_SAVE_KEY:SAVE_KEY;
