@@ -70,6 +70,12 @@ function openSettings(){
 $('title-settings').onclick=openSettings;$('pause-settings').onclick=openSettings;
 $('settings-close').onclick=()=>settingsDialog.close();
 settingsDialog.addEventListener('close',()=>{keys.clear();input.fire=false;});
+settingsDialog.addEventListener('keydown',e=>{
+ if(e.key!=='Tab')return;
+ const controls=[...settingsDialog.querySelectorAll('input,button')].filter(el=>!el.disabled),first=controls[0],last=controls.at(-1);
+ if(e.shiftKey&&(document.activeElement===first||!controls.includes(document.activeElement))){e.preventDefault();last.focus();}
+ else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+});
 $('setting-sensitivity').oninput=e=>changeSettings({sensitivity:Number(e.target.value)});
 $('setting-volume').oninput=e=>changeSettings({volume:Number(e.target.value)/100});
 $('setting-invert').onchange=e=>changeSettings({invertY:e.target.checked});

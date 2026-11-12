@@ -74,8 +74,10 @@ with sync_playwright() as pw:
   checks['configured_aim_reaches_player']=abs(after['yaw']-before['yaw']-.024*1.05)<.00001 and abs(after['pitch']-before['pitch']-.021*1.05)<.00001
   page.locator('#pause-button').click();page.locator('#pause-settings').click()
   page.locator('#setting-sound').uncheck()
+  page.wait_for_function('window.__riftfront.audioStatus.gain===0')
   checks['muting_silences_existing_audio']=page.evaluate('window.__riftfront.audioStatus.gain')==0
   page.locator('#setting-sound').check();page.locator('#setting-volume').focus();page.keyboard.press('Home')
+  page.wait_for_function('window.__riftfront.audioStatus.gain===0')
   checks['zero_volume_is_silent']=page.evaluate('window.__riftfront.audioStatus.gain')==0
   saves=page.evaluate("[localStorage.getItem('crownfold-riftfront-save-v1'),localStorage.getItem('crownfold-riftfront-quick-save-v1')]")
   page.locator('#settings-reset').click()
