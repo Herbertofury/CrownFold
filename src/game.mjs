@@ -331,7 +331,12 @@ window.addEventListener('keydown',e=>{
  if(key==='Digit4'&&commander){issueOrder(s,'follow',s.player.x,s.player.z);return;}
 });
 window.addEventListener('keyup',e=>{keys.delete(keyFor(e));});
-window.addEventListener('blur',()=>{keys.clear();input.fire=false;});
+function pauseForFocusLoss(){
+ // Do not carry held inputs or accumulated simulation time across an interruption.
+ keys.clear();input.x=0;input.z=0;input.sprint=false;input.jump=false;input.aim=false;input.fire=false;bank=0;commanderDrag=null;selectBox.classList.add('hidden');document.body.classList.remove('aiming');
+ if(active&&!paused)togglePause(true);
+}
+window.addEventListener('blur',pauseForFocusLoss);
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('pointerdown',e=>{if(arsenalDialog.open||!active||paused||help||buildMenu||rpgMenu||dialogue||lockMenu)return;
   if(commander){
@@ -447,7 +452,7 @@ function frame(now){const dt=Math.min(.06,(now-last)/1000||.016);last=now;
  for(const item of [...noteEls])if(now-item.at>4600){item.item.remove();noteEls.splice(noteEls.indexOf(item),1);}
  requestAnimationFrame(frame);
 }
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&active&&(s.zone==='frontier'||s.war))safeSave();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseForFocusLoss();});
 window.addEventListener('beforeunload',()=>{if(active&&(s.zone==='frontier'||s.war))safeSave();});
 // Test/dev inspector: read-only game objects and deterministic module methods, no account data.
 Object.defineProperty(window,'__riftfront',{get:()=>({tactics:tacticalRuntime(),objectives:objectiveRuntime(),state:s,renderer,active,paused,commander,rpgMenu,dialogue,settings:{...settings},audioStatus:{state:audio?.state??'not-started',gain:masterGain?.gain.value??0},sim:{stepGame,enterOperation,finishOperation,issueOrder,fold,echo,addBuilding,castAbility,dodge,serialize,restore},ui:{toggleRpg,openDialogue,renderRpg},guidance:frontierGuidance(s)})});
