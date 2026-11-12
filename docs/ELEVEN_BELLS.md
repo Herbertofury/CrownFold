@@ -20,7 +20,7 @@ Orders are offered one at a time. A current order can continue across an act tra
 2. Press **Tab** and open **Eleven Bells / Optional Field Orders** for the brief and live outcomes. The first dispatch arrives after 24 simulation seconds. Later unlocked dispatches use an eight-second interval after resolving or leaving the current one.
 3. Follow the amber ring on the tactical map. **Track Optional Sortie** changes your world waypoint, including when you return to third person. Click **Track Main Siege Objective** to return to the main target. Tracking clears when that sortie ends.
 4. Help, fight, escort or deliberately leave each order. Rescue the Bellkeepers **before** destroying the throne. Once it falls, call extraction and hold the corridor.
-5. After victory, defeat or withdrawal, press **C** to read the saved field report in the Chronicle. Success, failed, skipped and missed outcomes are distinct. **Continue Quick Session** restores frontier progress and the report; it does not resume an in-progress battle.
+5. After victory, defeat or withdrawal, press **C** to read the saved field report in the Chronicle. Success, failed, skipped and missed outcomes are distinct. **Continue Quick Session** restores frontier progress and the report after settlement. If a siege is still active, **Resume Quick War** restores its latest checkpoint.
 
 The other four campaigns retain their generic, repeating crisis director. The original standalone board game is unchanged.
 
@@ -36,3 +36,7 @@ The other four campaigns retain their generic, repeating crisis director. The or
 This is an authored mission-content increment in the browser pre-alpha, using existing procedural art and aggregate armies. It does not prove 20–30-minute balance, high-end visual quality, target-hardware frame rates, full unassisted campaign completion, voice acting, a native Rust executable or multiplayer. Real campaign pacing and enjoyment still require repeated human playtests.
 
 The authored siege has been reconciled with the approved Rust tactical runtime and tactical-camera renderer fixes in main. Its generated offline HTML is rebuilt from the combined source, preserving Rust/Wasm routing, the JavaScript compatibility mode, source-mode server routes, save protections and software-renderer camera focus. The siege UI harness uses offline HTML; the separate gameplay and renderer harnesses cover the served runtime and distant tactical view.
+
+### Siege checkpoints
+
+Pausing or returning to the title now saves the active siege, including sortie outcomes and their buffs. Resume uses the existing quick/world slot; beginning a fresh siege resets those battle-specific outcomes. Victory or withdrawal writes the Chronicle report and removes the active checkpoint. Classic shooter missions remain frontier-only saves.

@@ -4,10 +4,10 @@ Updated 2026-11-12. This supersedes the previous Unreal production proposal. The
 
 ## Running today
 
-- `rust/crownfold-tactics` is an engine-independent, dependency-free Rust library. It owns bounded formation A*, cover occlusion, blocked-position and segment-circle queries.
-- `src/battlefield.mjs` calls that library compiled to WebAssembly during actual War Rift simulation. The browser renderer, UI, broader combat, RPG, economy and save layer remain JavaScript.
+- `rust/crownfold-tactics` is an engine-independent, dependency-free Rust library. It owns bounded formation A*, cover occlusion, blocked-position and segment-circle queries, plus versioned siege objective validation and transitions.
+- `src/battlefield.mjs` calls that library compiled to WebAssembly during actual War Rift simulation. The browser renderer, UI, combat, RPG, economy and checkpoint encoding/storage remain JavaScript.
 - The same crate builds and tests natively. This is a reusable native gameplay foundation, **not a native game executable**.
-- The compiled 39,865-byte Wasm module is embedded in the offline HTML through a generated JS data module. Players need neither Rust nor an external download. There are no Wasm host imports or third-party Rust crates.
+- The compiled 68,476-byte Wasm module is embedded in the offline HTML through a generated JS data module. Players need neither Rust nor an external download. There are no Wasm host imports or third-party Rust crates.
 - If Wasm cannot initialize, the title-screen footer explicitly reports JavaScript compatibility mode. It uses the maintained reference implementation and does not discard saves.
 - Cover/grid clearance now agrees at 2.3 meters. Grid edges and the connection from the actual unit position are checked before emitting a route, fixing corner-grazing and first-waypoint cover crossings.
 
@@ -47,8 +47,16 @@ The JS compatibility run was slightly faster in this small scene (average 0.430â
 3. **Native renderer evaluation:** compare a Rust-native engine/ECS renderer (for example Bevy/wgpu) against a small, representative battlefield. Select only after measuring controller feel, animation tooling, scene streaming, frame times and packaging. Neither a native renderer nor any particular framework is integrated yet.
 4. **Production-quality combat and art:** camera collision, animation transitions, readable squads, authored environmental storytelling, spatial audio, accessibility and input rebinding. Assets and composition, not the language label, determine visual quality.
 5. **Measured scale:** profile spatial queries, allocation, path reuse and distant simulation; then test hundreds of visible actors on specified target hardware. Keep aggregate strategic simulation where detailed actors add no player value.
-6. **Persistence and co-op:** atomic checkpoints, migration/corruption recovery, authoritative command validation, then reconnect and network-loss testing. Current operations still do not resume mid-battle.
+6. **Persistence and co-op:** atomic checkpoints, migration/corruption recovery, authoritative command validation, then reconnect and network-loss testing. War Rifts now resume browser-local mid-battle checkpoints. Classic shooter operations and dungeons still do not; networked authority remains future work.
 
 ## Honest acceptance gates
 
 The product remains a browser pre-alpha. A full native Rust executable, production assets, mature physics, streaming cities, skeletal animation, co-op, controller/accessibility coverage, target-GPU frame budgets and complete unassisted campaign playtests remain outstanding. The original board mode and current saves stay available during incremental migration. The Rust direction replaces the old Unreal recommendation; it does not convert those old architectural aspirations into delivered features.
+
+## War Rift checkpoint slice
+
+The objective ABI is independently versioned at 1; the original geometry ABI stays at 1. The pure Rust `objectives::step` accepts current siege state and battlefield observations, then returns at most one act transition or terminal outcome. JavaScript handles corresponding event presentation, supply rewards and rearguard spawning. This is not fixed-tick authority for all combat or a multiplayer security boundary. The explicit JavaScript compatibility backend preserves the same rules.
+
+The existing v1 frontier JSON gains an optional `warCheckpoint` v1 envelope. Its bounded JSON payload stores the live simulation fields, and an FNV checksum detects accidental corruption (not tampering). Required shape/enum checks and Rust objective validation finish before applying anything. Unsupported/damaged checkpoints recover the separate frontier representation. One localStorage replacement commits the frontier representation and active checkpoint together; rewards clear the checkpoint in the next successful write. No reward is granted merely by loading.
+
+`tests/war_checkpoints.test.mjs` covers all five campaigns, resumed/uninterrupted state equality, supports/training/projectiles, same-frame casualties, all siege acts, extraction settlement, return eras, Fold fields, legacy migration, malformed checkpoints and no-Wasm compatibility. `tests/war_checkpoints_browser.py` checks served/offline/fallback UI save/reload, independent slots/settings, corruption recovery and failed storage writes with fixture-assisted combat setup. It does not replace a complete human campaign or hardware GPU test.

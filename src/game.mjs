@@ -1,3 +1,4 @@
+import {objectiveRuntime} from './war-objectives.mjs';
 import {tacticalRuntime} from './battlefield.mjs';
 import {createGame,restore,serialize,stepGame,WEAPONS,STRUCTURES,CONTRACTS,clamp,fmtTime,dist,terrainHeight,biomeAt,worldGates,nearestInteraction,interact,enterOperation,finishOperation,addBuilding,recruit,issueOrder,fold,echo,grenade,orbital,resupply,reload,setWeapon,useConsumable,castAbility,dodge,sleepAtCamp} from './sim.mjs';
 import {NPCS,NPC_BY_ID,LANDMARKS,DUNGEON_BY_ID,FACTIONS,PERKS,ABILITIES,QUESTS,QUEST_BY_ID,RECIPES,GOODS,RARITIES,perkRank,rpgStat,buyPerk,equipGear,salvageGear,craft,fastTravel,activeQuest,dialogueOptions,dialogueChoice,buyGood,startBounty,claimBounty,generateBounty,LOCKBOXES,attemptLock} from './rpg.mjs';
@@ -10,7 +11,7 @@ import {DEFAULT_SETTINGS,loadSettings,saveSettings,normalizeSettings,aimDelta,ma
 const $=id=>document.getElementById(id),canvas=$('world');
 const runtime=tacticalRuntime();
 $('tactics-runtime').textContent=runtime.backend==='rust-wasm'?'RUST TACTICS · WASM':'JS TACTICS · COMPATIBILITY MODE';
-$('tactics-runtime').title=runtime.reason||'Cover collision and formation routes run in Rust compiled to WebAssembly.';
+$('tactics-runtime').title=runtime.reason||'Formation routes, cover collision and siege objective transitions run in Rust compiled to WebAssembly.';
 const settingsDefaults={...DEFAULT_SETTINGS,reduceEffects:window.matchMedia('(prefers-reduced-motion: reduce)').matches};
 let settingsStorage=null;try{settingsStorage=window.localStorage;}catch{}
 let settings=loadSettings(settingsStorage,settingsDefaults);
@@ -28,7 +29,7 @@ try{renderer=new WorldRenderer(canvas,quality);}catch(e){$('error').textContent=
 let audio=null,masterGain=null;let weakBefore=0;
 function tone(freq=220,seconds=.1,kind='triangle',volume=.12,end=freq*.6){if(!audio)return;try{const o=audio.createOscillator(),g=audio.createGain(),now=audio.currentTime;o.type=kind;o.frequency.setValueAtTime(freq,now);o.frequency.exponentialRampToValueAtTime(Math.max(20,end),now+seconds);g.gain.setValueAtTime(volume,now);g.gain.exponentialRampToValueAtTime(.0001,now+seconds);o.connect(g);g.connect(masterGain);o.start(now);o.stop(now+seconds+.01);}catch{}}
 function sound(name){if(name==='shoot')tone(s.player.weapon==='rail'?150:350,.09,'sawtooth',.04,45);if(name==='hit')tone(790,.10,'square',.025,360);if(name==='fold'){tone(145,.65,'sine',.15,800);tone(420,.37,'triangle',.07,120);}if(name==='echo')tone(1000,.55,'sine',.1,130);if(name==='notification')tone(430,.22,'sine',.045,620);if(name==='explosion')tone(80,.48,'sawtooth',.15,28);if(name==='build')tone(180,.2,'triangle',.08,390);}
-function updateContinue(){$('continue-game').disabled=!safeLoad(SAVE_KEY);$('continue-quick').disabled=!safeLoad(QUICK_SAVE_KEY);}
+function updateContinue(){for(const [id,key,label] of [['continue-game',SAVE_KEY,'CONTINUE OPEN WORLD'],['continue-quick',QUICK_SAVE_KEY,'CONTINUE QUICK SESSION']]){const saved=safeLoad(key),button=$(id);button.disabled=!saved;button.textContent=saved?.war?'RESUME '+(key===SAVE_KEY?'WORLD':'QUICK')+' WAR / '+saved.operation.name:label;}}
 updateContinue();
 const canCapturePointer=()=>!commander&&!paused&&!buildMenu&&!help&&!rpgMenu&&!dialogue&&!lockMenu&&active;
 function pointer(){if(canCapturePointer()&&document.pointerLockElement!==canvas){try{
@@ -41,7 +42,7 @@ document.addEventListener('pointerlockchange',()=>{if(!canCapturePointer())exitP
 function setVisibility(id,show){$(id).classList.toggle('hidden',!show);}
 function start(kind='new'){
  const quick=['drop','war','continue-quick'].includes(kind),key=quick?QUICK_SAVE_KEY:SAVE_KEY;
- if(['new','drop','war'].includes(kind)&&hasSave(key)&&!window.confirm(`Start a new ${quick?'quick session':'open world'}? This replaces its existing saved frontier progress.`))return;
+ if(['new','drop','war'].includes(kind)&&hasSave(key)&&!window.confirm(`Start a new ${quick?'quick session':'open world'}? This replaces its existing saved progress, including any active War Rift checkpoint.`))return;
  const loaded=kind==='continue'||kind==='continue-quick'?safeLoad(key):null;if((kind==='continue'||kind==='continue-quick')&&!loaded){updateContinue();return;}
  trackedWarSortie=null;currentSaveKey=key;s=loaded||createGame((0xC0F01D + Math.floor(Math.random()*200000))|0);
  if(kind==='drop')enterOperation(s,0);if(kind==='war')enterOperation(s,3);
@@ -49,13 +50,13 @@ function start(kind='new'){
  setVisibility('menu',false);setVisibility('hud',true);setVisibility('commander-panel',false);setVisibility('build-panel',false);setVisibility('pause-overlay',false);setVisibility('help-overlay',false);setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);
  input.yaw=s.player.yaw;input.pitch=s.player.pitch;lastNotice=s.lastEvent;lastAutoSave=performance.now();bank=0;zoneBefore=s.zone;eraBefore=s.era;healthBefore=s.player.hp;shotBefore=s.player.shots;weakBefore=s.player.weakHits||0;
  if(kind==='new')s.messages.push({id:++s.lastEvent,text:'WELCOME TO THE UNBROKEN FRONTIER. HEAD FOR A RIFT GATE.',type:'command',at:0});
- syncAudio(true);pointer();refresh(true);
+ syncAudio(true);pointer();refresh(true);if(s.checkpointWarning)toast('WAR CHECKPOINT UNAVAILABLE · FRONTIER PROGRESS RECOVERED','warning');
 }
 $('rpg-button').onclick=()=>toggleRpg('inventory');$('close-rpg').onclick=()=>toggleRpg(null);$('dialogue-leave').onclick=()=>closeDialogue();for(const b of document.querySelectorAll('[data-rpg-tab]'))b.onclick=()=>toggleRpg(b.dataset.rpgTab);
 $('new-game').onclick=()=>start('new');$('continue-game').onclick=()=>start('continue');$('continue-quick').onclick=()=>start('continue-quick');$('quick-operation').onclick=()=>start('drop');$('quick-war').onclick=()=>start('war');$('fold-target').onclick=()=>{selectEpoch(s);refresh(true);};
 $('pause-button').onclick=()=>togglePause();$('resume').onclick=()=>togglePause(false);$('back-menu').onclick=()=>backToMenu();
-$('abort-operation').onclick=()=>{if(s.zone==='operation'){finishOperation(s,false);safeSave();toast('OPERATION ABORTED · PARTIAL SALVAGE RETAINED','warning');togglePause(false);}};
-$('save-button').onclick=()=>{const saved=safeSave();toast(saved?'FRONTIER PROGRESS SAVED':'SAVING IS BLOCKED BY YOUR BROWSER',saved?'success':'warning');};
+$('abort-operation').onclick=()=>{if(s.zone==='operation'){finishOperation(s,false);const saved=safeSave();toast(saved?'OPERATION ABORTED · PARTIAL SALVAGE SAVED':'OPERATION ENDED · SAVE FAILED · KEEP GAME OPEN','warning');togglePause(false);}};
+$('save-button').onclick=()=>{const saved=safeSave();toast(saved?(s.war?'WAR CHECKPOINT SAVED':'FRONTIER PROGRESS SAVED'):'SAVE FAILED · PREVIOUS SAVE KEPT',saved?'success':'warning');};
 $('quality-button').onclick=()=>{quality=quality==='high'?'standard':'high';renderer?.dispose();renderer=new WorldRenderer(canvas,quality);$('quality-button').textContent=`QUALITY: ${quality.toUpperCase()}`;toast('RENDERER QUALITY UPDATED');};
 function syncAudio(userGesture=false){
  if(userGesture&&settings.soundEnabled&&!audio){try{audio=new(window.AudioContext||window.webkitAudioContext)();masterGain=audio.createGain();masterGain.connect(audio.destination);}catch{audio=null;masterGain=null;toast('SOUND NOT AVAILABLE','warning');}}
@@ -98,8 +99,8 @@ refreshSettings();syncAudio();
 $('help-button').onclick=()=>toggleHelp();$('help-close').onclick=()=>toggleHelp(false);
 $('expand-map').onclick=()=>{mapExpanded=!mapExpanded;document.body.classList.toggle('map-expanded',mapExpanded);if(mapExpanded){exitPointer();}else{pointer();}};
 $('close-build').onclick=()=>toggleBuild(false);$('recruit-button').onclick=()=>{if(recruit(s)){sound('build');toggleBuild(false);}else toast('NOT ENOUGH SCRAP OR SQUAD CAP REACHED','warning');};
-function backToMenu(){safeSave();active=false;paused=false;commander=false;commanderCompact=false;document.body.classList.remove('commanding','command-compact');keys.clear();input.fire=false;exitPointer();setVisibility('menu',true);setVisibility('hud',false);setVisibility('pause-overlay',false);setVisibility('commander-panel',false);setVisibility('build-panel',false);setVisibility('help-overlay',false);setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);rpgMenu=false;dialogue=false;lockMenu=false;updateContinue();}
-function togglePause(value=!paused){if(!active)return;if(value){rpgMenu=false;dialogue=false;lockMenu=false;setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);}paused=value;setVisibility('pause-overlay',paused);if(paused){exitPointer();safeSave();}else pointer();}
+function backToMenu(){if(!safeSave()&&!window.confirm('Saving failed. Return to title without saving current progress? Your previous save will remain.'))return;active=false;paused=false;commander=false;commanderCompact=false;document.body.classList.remove('commanding','command-compact');keys.clear();input.fire=false;exitPointer();setVisibility('menu',true);setVisibility('hud',false);setVisibility('pause-overlay',false);setVisibility('commander-panel',false);setVisibility('build-panel',false);setVisibility('help-overlay',false);setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);rpgMenu=false;dialogue=false;lockMenu=false;updateContinue();}
+function togglePause(value=!paused){if(!active)return;if(value){rpgMenu=false;dialogue=false;lockMenu=false;setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);}paused=value;setVisibility('pause-overlay',paused);if(paused){exitPointer();if(!safeSave())toast('SAVE FAILED · PREVIOUS SAVE KEPT','warning');}else pointer();}
 function toggleHelp(value=!help){if(value){rpgMenu=false;dialogue=false;lockMenu=false;setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);}help=value;setVisibility('help-overlay',help);if(help)exitPointer();else pointer();}
 function toggleBuild(value=!buildMenu){if(!active||rpgMenu||dialogue||lockMenu)return;buildMenu=value;setVisibility('build-panel',buildMenu);if(value){exitPointer();refreshBuild();}else pointer();}
 function setCommanderCompact(yes){commanderCompact=!!yes;document.body.classList.toggle('command-compact',commander&&commanderCompact);$('commander-compact').textContent=commanderCompact?'EXPAND COMMAND CONSOLE  [ ` ]':'CLEAR MAP FOR ORDERS  [ ` ]';}
@@ -354,7 +355,7 @@ function refresh(force=false){if(!renderer||!active)return;
  if(p.shots>shotBefore){$('crosshair').classList.add('fire');setTimeout(()=>$('crosshair').classList.remove('fire'),80);sound('shoot');shotBefore=p.shots;}
  if((p.weakHits||0)>weakBefore){$('crosshair').classList.add('precision');setTimeout(()=>$('crosshair').classList.remove('precision'),240);tone(1020,.11,'triangle',.07,520);weakBefore=p.weakHits;}
  for(const m of s.messages)if(m.id>lastNotice){toast(m.text,m.type);if(m.type==='success'||m.type==='command')sound('notification');lastNotice=m.id;}
- if(zoneBefore!==s.zone){if(s.zone==='frontier'){safeSave();toast('EXTRACTED TO SURVIVAL / YOUR PROGRESS PERSISTS','success');}zoneBefore=s.zone;}
+ if(zoneBefore!==s.zone){if(s.zone==='frontier'){const saved=safeSave();toast(saved?'EXTRACTED TO SURVIVAL / PROGRESS SAVED':'EXTRACTED · SAVE FAILED · KEEP GAME OPEN',saved?'success':'warning');}zoneBefore=s.zone;}
 }
 function drawMinimap(){const c=$('minimap'),ctx=c.getContext('2d'),p=s.player,w=c.width,h=c.height,range=110,px=x=>w/2+(x-p.x)*w/(range*2),py=z=>h/2+(z-p.z)*h/(range*2);
   ctx.fillStyle='#0a2028';ctx.fillRect(0,0,w,h);
@@ -380,11 +381,12 @@ function frame(now){const dt=Math.min(.06,(now-last)/1000||.016);last=now;
  }
  if(active&&now-lastUi>140){lastUi=now;refresh();}
  if(active&&now-lastMini>350){lastMini=now;drawMinimap();}
- if(active&&s.zone==='frontier'&&now-lastAutoSave>30000){safeSave();lastAutoSave=now;}
+ if(active&&(s.zone==='frontier'||s.war)&&now-lastAutoSave>30000){if(!safeSave())toast('AUTOSAVE FAILED · PREVIOUS SAVE KEPT','warning');lastAutoSave=now;}
  for(const item of [...noteEls])if(now-item.at>4600){item.item.remove();noteEls.splice(noteEls.indexOf(item),1);}
  requestAnimationFrame(frame);
 }
-window.addEventListener('beforeunload',()=>{if(active&&s.zone==='frontier')safeSave();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&active&&(s.zone==='frontier'||s.war))safeSave();});
+window.addEventListener('beforeunload',()=>{if(active&&(s.zone==='frontier'||s.war))safeSave();});
 // Test/dev inspector: read-only game objects and deterministic module methods, no account data.
-Object.defineProperty(window,'__riftfront',{get:()=>({tactics:tacticalRuntime(),state:s,renderer,active,paused,commander,rpgMenu,dialogue,settings:{...settings},audioStatus:{state:audio?.state??'not-started',gain:masterGain?.gain.value??0},sim:{stepGame,enterOperation,finishOperation,issueOrder,fold,echo,addBuilding,castAbility,dodge,serialize,restore},ui:{toggleRpg,openDialogue,renderRpg}})});
+Object.defineProperty(window,'__riftfront',{get:()=>({tactics:tacticalRuntime(),objectives:objectiveRuntime(),state:s,renderer,active,paused,commander,rpgMenu,dialogue,settings:{...settings},audioStatus:{state:audio?.state??'not-started',gain:masterGain?.gain.value??0},sim:{stepGame,enterOperation,finishOperation,issueOrder,fold,echo,addBuilding,castAbility,dodge,serialize,restore},ui:{toggleRpg,openDialogue,renderRpg}})});
 requestAnimationFrame(frame);
