@@ -38,6 +38,10 @@ The offline build embeds the Rust module and requires no installation. Its foote
 | B / N / H / J / K | Build menu / recruit / heal / rations / water |
 | ESC | Pause / close an RPG panel / exit dialogue |
 
+## Field supplies
+
+Open **I / Inventory** for medkit, ration and water cards showing stock, exact capped recovery and a Use button. Full meters and empty stock disable use; H / J / K remain the quick shortcuts and explain why an item cannot be used. Supplies never disappear at full health, hunger or thirst. Field Surgeon perks affect the medkit preview and actual healing equally.
+
 ## Resume a War Rift
 
 Pause, choose **Save Progress Now**, or return to the title to checkpoint a running siege. Autosave runs every 30 seconds and when the tab is hidden. The matching Continue button becomes **Resume World War** or **Resume Quick War**. Time does not elapse while the game is closed.

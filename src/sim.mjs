@@ -141,7 +141,21 @@ export function grenade(s){const p=s.player;if(!p.grenades)return false;p.grenad
 export function orbital(s){const p=s.player;if(p.orbitalCooldown>0||s.inventory.flux<45)return false;s.inventory.flux-=45;p.orbitalCooldown=65;const x=p.x+Math.sin(p.yaw)*38,z=p.z-Math.cos(p.yaw)*38;s.projectiles.push({id:++s.nextId,kind:'orbital',x,z,y:terrainHeight(x,z,s.seed,s.zone)+110,tx:x,tz:z,ttl:2.0,total:2.0,owner:'player'});emit(s,'SKYBREAKER / ORBITAL LANCE MARKED','command');effect(s,'deploy',x,z);return true;}
 export function resupply(s){const p=s.player;if(p.resupplyCooldown>0||s.inventory.scrap<18)return false;s.inventory.scrap-=18;p.resupplyCooldown=75;for(const [name,weapon] of Object.entries(WEAPONS)){p.reserve[name]=Math.min(weapon.reserve*3,p.reserve[name]+({rifle:120,scatter:40,rail:24,smg:180,cryo:68,launcher:12}[name]||24));p.ammo[name]=weapon.mag;}p.reload=0;p.grenades=Math.min(6,p.grenades+2);p.shield=Math.min(p.maxShield,p.shield+25);p.hp=Math.min(p.maxHp,p.hp+15);for(const unit of s.squad)unit.hp=Math.min(unit.maxHp,unit.hp+20);effect(s,'deploy',p.x,p.z);emit(s,'SKYHOOK / FULL RESUPPLY DELIVERED','success');return true;}
 export function applyExplosion(s,x,z,damage=115,radius=9){damage*=rpgStat(s,'blast');effect(s,'explosion',x,z,{radius});if(s.war)warExplosion(s,x,z,damage,radius);for(const e of s.enemies)if(e.hp>0){const d=dist(e,{x,z});if(d<radius+ENEMIES[e.kind].radius)hitEnemy(s,e,damage*(1-clamp(d/radius,0,.9)),'player');}}
-export function useConsumable(s,type){const p=s.player;if(type==='medkit'){if(s.inventory.medkit<=0||p.hp>=p.maxHp)return false;s.inventory.medkit--;p.hp=Math.min(p.maxHp,p.hp+rpgStat(s,'medkit'));emit(s,`BIOFOAM / +${rpgStat(s,'medkit')} HEALTH`,'success');return true;}if(type==='ration'){if(s.inventory.ration<=0)return false;s.inventory.ration--;p.hunger=Math.min(100,p.hunger+54);return true;}if(type==='water'){if(s.inventory.water<=0)return false;s.inventory.water--;p.thirst=Math.min(100,p.thirst+59);return true;}return false;}
+export function consumableStatus(s,type){
+ const spec={medkit:['BIOFOAM','hp','maxHp','HEALTH',rpgStat(s,'medkit')],ration:['TRAIL RATIONS','hunger',null,'HUNGER',54],water:['CLEAN WATER','thirst',null,'THIRST',59]}[type];
+ if(!Array.isArray(spec))return null;
+ const [name,meter,maxKey,label,potency]=spec,p=s.player,max=maxKey?p[maxKey]:100,current=p[meter],count=s.inventory[type];
+ const recovery=Number.isFinite(current)&&Number.isFinite(max)?Math.max(0,Math.min(potency,max-current)):0;
+ const reason=p.hp<=0?'INCAPACITATED':!(count>=1)?'OUT OF STOCK':recovery<=0?'ALREADY FULL':null;
+ const recoveryText=recovery>0&&recovery<.1?'<0.1':String(Number(recovery.toFixed(1)));
+ return {name,meter,label,count,recovery,recoveryText,reason,usable:reason===null};
+}
+export function useConsumable(s,type){
+ const info=consumableStatus(s,type);if(!info)return false;
+ if(!info.usable){emit(s,`${info.name} / ${info.reason}`,'warning');return false;}
+ s.inventory[type]--;s.player[info.meter]+=info.recovery;
+ emit(s,`${info.name} / +${info.recoveryText} ${info.label}`,'success');return true;
+}
 export function echo(s){const p=s.player;if(s.inventory.flux<28||p.echoCooldown>0)return false;const target=p.memories.find(q=>q.at<=s.time-4.8)||p.memories[0];if(!target||s.time-target.at<2)return false;s.inventory.flux-=28;p.x=target.x;p.z=target.z;p.y=terrainHeight(p.x,p.z,s.seed,s.zone);p.hp=Math.max(p.hp,Math.min(p.maxHp,target.hp));p.shield=Math.max(p.shield,target.shield);p.echoCooldown=24*rpgStat(s,'cooldowns');p.invulnerable=.9;s.stats.echoes++;effect(s,'echo',p.x,p.z);emit(s,'ECHO / FIVE SECONDS RECLAIMED','success');return true;}
 function rotateAround(o,c,dir=1){const x=o.x-c.x,z=o.z-c.z;o.x=c.x-z*dir;o.z=c.z+x*dir;if('tx'in o){const tx=o.tx-c.x,tz=o.tz-c.z;o.tx=c.x-tz*dir;o.tz=c.z+tx*dir;}}
 export function fold(s){const p=s.player;if(s.inventory.flux<35||p.foldCooldown>0)return false;const anchor={x:Math.round(p.x/24)*24,z:Math.round(p.z/24)*24};const inside=o=>Math.abs(o.x-anchor.x)<11.5&&Math.abs(o.z-anchor.z)<11.5;
