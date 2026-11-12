@@ -42,7 +42,7 @@ with sync_playwright() as pw:
   checks['mouse_equips_cryo']=state(page)['weapon']=='cryo'
   # A real fire input changes ammo; then real reload input drives the HUD meter.
   page.evaluate('document.exitPointerLock()');page.mouse.move(710,490);page.mouse.down();page.wait_for_timeout(100);page.mouse.up()
-  page.keyboard.press('r');page.wait_for_function('window.__riftfront.state.player.reload>0')
+  page.keyboard.press('r');page.wait_for_function('window.__riftfront.state.player.reload>0');page.locator('#reload-meter').wait_for(state='visible')
   checks['reload_hud_visible']=page.locator('#reload-meter').is_visible() and 'RELOADING' in page.locator('#reload-status').inner_text()
   open_arsenal(page);remaining=page.evaluate('window.__riftfront.state.player.reload');page.wait_for_timeout(200)
   checks['arsenal_freezes_reload']=page.evaluate('window.__riftfront.state.player.reload')==remaining
