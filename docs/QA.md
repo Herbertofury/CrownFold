@@ -6,7 +6,7 @@
 - Wasm reproducibility check and offline build pass. No third-party Rust dependencies or Wasm host imports.
 - CPU benchmark scope/results and limitations: [Rust architecture](TECH_STACK_2026.md). No speedup, rendering-FPS or native-executable claim.
 - Local browser execution is blocked by this host's OS socket restriction. Browser tests are added to CI but must be checked on the exact published commit before reporting browser verification. Hardware GPU and full human campaign playtests remain unverified.
-- Combat/save safety from PR #1 is included, preserving separate open-world/quick-save slots and replacement confirmation. Operations still do not resume mid-battle.
+- Combat/save safety from PR #1 is included, preserving separate open-world/quick-save slots and replacement confirmation. That baseline returned operations to the frontier; the later War Rift checkpoint slice now resumes active sieges (see [current architecture](TECH_STACK_2026.md#war-rift-checkpoint-slice)).
 
 ---
 

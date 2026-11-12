@@ -3,6 +3,7 @@
 import {makeRPG,generateBounty,restoreRPG,rpgStat,grantXP,rpgEvent,discoverNearby,markDiscovered,openChest,LANDMARKS,LOCKBOXES,NPCS,DUNGEON_BY_ID,DUNGEONS,perkRank} from './rpg.mjs';
 import {ERA_ORDER,ERAS,CHRONICLE,availableRifts,eraSites,makeTemporal,migrateTemporal,epochSeed,validEra,cycleFacetEra,stampFacet,facetAt,temporalModifier} from './temporal.mjs';
 import {WAR_CAMPAIGNS,createWarfront,trainBattalion,constructWarBuilding,warOrder,stepWarfront,warObjective,bellSiegeReport,signalWarExtraction,traceWarShot,applyWarShot,warExplosion} from './war.mjs';
+import {makeWarCheckpoint,restoreWarCheckpoint} from './war-checkpoint.mjs';
 export const SEED = 0xC0F01D;
 export const TAU = Math.PI * 2;
 export const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
@@ -95,8 +96,9 @@ export function addBuilding(s,kind,x,z,free=false){const spec=STRUCTURES[kind];i
 }
 export function recruit(s){if(s.inventory.scrap<22 || s.squad.length>=8){emit(s,'Need 22 scrap / squad cap 8');return false;}s.inventory.scrap-=22;const id=++s.nextId;const p=s.player;s.squad.push({id,x:p.x+3,z:p.z+2,y:0,hp:115,maxHp:115,role:id%3?'RANGER':'HEAVY',era:s.era,order:'follow',tx:p.x,tz:p.z,cooldown:0});emit(s,'Reinforcement joined your command','success');return true;}
 export function issueOrder(s,order,x,z,unitId=null){if(!['follow','move','defend','assault'].includes(order))return false;let count=0;for(const unit of s.squad){if(s.war&&(s.war.selectedBattalionId!==null||s.war.selectedBattalionIds?.length)&&unitId===null)continue;if(unitId!==null&&unit.id!==unitId)continue;unit.order=order;unit.tx=Number.isFinite(x)?x:s.player.x;unit.tz=Number.isFinite(z)?z:s.player.z;count++;}if(s.war&&unitId===null){warOrder(s,order,x,z);count+=s.war.selectedBattalionIds?.length||s.war.army.length;}if(count)emit(s,`SQUAD ${order.toUpperCase()} / ${count} UNIT${count===1?'':'S'}`,'command');return !!count;}
-export function reload(s){const p=s.player,w=WEAPONS[p.weapon];if(p.reload>0||p.ammo[p.weapon]>=w.mag||p.reserve[p.weapon]<=0)return false;p.reload=p.weapon==='launcher'?2.6:p.weapon==='rail'?2.1:p.weapon==='scatter'?1.9:1.6;emit(s,'Reloading');return true;}
-export function setWeapon(s,name){if(!(name in WEAPONS))return false;s.player.weapon=name;s.player.reload=0;emit(s,WEAPONS[name].name+' READY');return true;}
+export const reloadDuration=name=>({launcher:2.6,rail:2.1,scatter:1.9}[name]??1.6);
+export function reload(s){const p=s.player,w=WEAPONS[p.weapon];if(p.reload>0||p.ammo[p.weapon]>=w.mag||p.reserve[p.weapon]<=0)return false;p.reload=reloadDuration(p.weapon);emit(s,'Reloading');return true;}
+export function setWeapon(s,name){if(!Object.hasOwn(WEAPONS,name))return false;if(s.player.weapon===name)return true;s.player.weapon=name;s.player.reload=0;emit(s,WEAPONS[name].name+' READY');return true;}
 function hitEnemy(s,e,damage,source='player'){if(e.hp<=0)return;e.hp-=damage;effect(s,'hit',e.x,e.z,{amount:Math.round(damage),kind:e.kind});if(e.hp>0)return;e.hp=0;e.dead=true;if(source==='player'){s.player.kills++;grantXP(s,ENEMIES[e.kind].reward);rpgEvent(s,'kill',e.kind);for(const id of s.rpg.companions)s.rpg.affinity[id]=clamp((s.rpg.affinity[id]||0)+.3,0,100);if(e.elite&&s.rpg){s.rpg.coins+=15;emit(s,'ELITE TARGET / +15 CROWNS','success');}}s.pickups.push({id:++s.nextId,x:e.x,z:e.z,y:e.y,kind:e.kind==='factory'?'cache':e.kind==='titan'?'relic':'scrap',amount:e.kind==='factory'?55:e.kind==='titan'?150:3+ENEMIES[e.kind].reward,at:s.time});effect(s,'death',e.x,e.z,{kind:e.kind});if(e.kind==='factory'&&s.operation?.stage===1){s.operation.destroyed++;emit(s,`FABRICATOR DOWN / ${s.operation.destroyed}/2`,'success');}if(e.kind==='titan'&&s.operation?.stage===4){s.operation.bossDead=true;emit(s,'THE IRON SAINT HAS FALLEN','success');}if(s.dungeon?.bossId===e.id){s.dungeon.bossDead=true;emit(s,'DUNGEON GUARDIAN FALLEN / THE RELIC IS UNSEALED','success');}}
 export function shoot(s,aim,force=false){const p=s.player,w=WEAPONS[p.weapon];if(p.reload>0||p.fireCooldown>0||p.hp<=0)return false;if(p.ammo[p.weapon]<=0){reload(s);return false;}p.ammo[p.weapon]--;p.fireCooldown=w.rate;p.shots++;
   p.lastShotAt=s.time;if(s.rpg.status.cloak>0){s.rpg.status.cloak=0;emit(s,'GHOST VEIL BROKEN BY GUNFIRE','warning');}
@@ -349,7 +351,7 @@ export function stepGame(s,input={},dt=1/30){if(!s||dt<=0)return s;dt=Math.min(d
   s.buildings=s.buildings.filter(b=>b.hp>0);
   spawnDirector(s,dt);return s;
 }
-export function serialize(s){return JSON.stringify({rpg:{...s.rpg,dialogue:null,status:{cloak:0,rally:0},abilityCooldowns:{}},version:s.version,seed:s.zone==='operation'?epochSeed(s.temporal.baseSeed,s.temporal.returnEra):s.seed,era:s.zone==='operation'?s.temporal.returnEra:s.era,temporal:s.temporal,dayTime:s.dayTime,weather:s.weather,inventory:s.inventory,player:{...s.player,x:s.zone!=='frontier'?s.lastZonePos.x:s.player.x,z:s.zone!=='frontier'?s.lastZonePos.z:s.player.z,memories:[]},squad:s.zone!=='frontier'?s.squad.map((u,i)=>({...u,x:s.lastZonePos.x+(i-2)*2,z:s.lastZonePos.z+3+i%2,y:terrainHeight(s.lastZonePos.x+(i-2)*2,s.lastZonePos.z+3+i%2,s.seed,'frontier'),order:'follow'})):s.squad,buildings:s.buildings.filter(b=>b.zone==='frontier'),harvested:s.harvested,cleared:s.cleared,stats:s.stats,nextId:s.nextId});}
+export function serialize(s){return JSON.stringify({warCheckpoint:makeWarCheckpoint(s),rpg:{...s.rpg,dialogue:null,status:{cloak:0,rally:0},abilityCooldowns:{}},version:s.version,seed:s.zone==='operation'?epochSeed(s.temporal.baseSeed,s.temporal.returnEra):s.seed,era:s.zone==='operation'?s.temporal.returnEra:s.era,temporal:s.temporal,dayTime:s.dayTime,weather:s.weather,inventory:s.inventory,player:{...s.player,x:s.zone!=='frontier'?s.lastZonePos.x:s.player.x,z:s.zone!=='frontier'?s.lastZonePos.z:s.player.z,memories:[]},squad:s.zone!=='frontier'?s.squad.map((u,i)=>({...u,x:s.lastZonePos.x+(i-2)*2,z:s.lastZonePos.z+3+i%2,y:terrainHeight(s.lastZonePos.x+(i-2)*2,s.lastZonePos.z+3+i%2,s.seed,'frontier'),order:'follow'})):s.squad,buildings:s.buildings.filter(b=>b.zone==='frontier'),harvested:s.harvested,cleared:s.cleared,stats:s.stats,nextId:s.nextId});}
 export function restore(raw){let data;try{data=typeof raw==='string'?JSON.parse(raw):raw;}catch{return null;}if(!data||data.version!==1||!Number.isFinite(data.seed)||!data.inventory||!data.player||!Array.isArray(data.buildings)||!Array.isArray(data.squad))return null;
   const s=createGame(data.seed);s.temporal=migrateTemporal(data.temporal,data.seed);s.era=validEra(data.era)?data.era:'medieval';s.seed=epochSeed(s.temporal.baseSeed,s.era);s.rpg=restoreRPG(data.rpg,s);s.dayTime=Number.isFinite(data.dayTime)?data.dayTime:s.dayTime;
   for(const name of Object.keys(s.inventory))if(Number.isFinite(data.inventory[name]))s.inventory[name]=clamp(data.inventory[name],0,100000);
@@ -361,5 +363,8 @@ export function restore(raw){let data;try{data=typeof raw==='string'?JSON.parse(
   s.cleared=Array.isArray(data.cleared)?data.cleared.filter(v=>typeof v==='string'):[];
   if(data.stats&&typeof data.stats==='object')for(const k of Object.keys(s.stats))if(Number.isFinite(data.stats[k]))s.stats[k]=clamp(data.stats[k],0,1000000);
   if(Number.isSafeInteger(data.nextId))s.nextId=clamp(data.nextId,100,10000000);
-  emit(s,'SURVIVAL SAVE RESTORED','success');return s;
+  if(data.warCheckpoint){
+    if(restoreWarCheckpoint(s,data.warCheckpoint)){emit(s,'WAR CHECKPOINT RESTORED / THE SIEGE CONTINUES','success');return s;}
+    s.checkpointWarning=true;emit(s,'WAR CHECKPOINT UNAVAILABLE / FRONTIER PROGRESS RECOVERED','warning');
+  }else emit(s,'SURVIVAL SAVE RESTORED','success');return s;
 }

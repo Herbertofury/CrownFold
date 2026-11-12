@@ -9,13 +9,13 @@ CrownFold is an original open-world third-person survival RPG with live RTS comm
 ## Play without installation
 
 1. Download/open [`dist/CROWNFOLD-RIFTFRONT.html`](dist/CROWNFOLD-RIFTFRONT.html) in a desktop browser; it embeds all scripts and styles and plays offline.
-2. **Enter the Open World** to start in the Crownless March. **Quick War** begins the first RTS war campaign, while **Classic 36 Min Rift Operation** starts the earlier six-stage shooter mission. Quick sessions have a separate frontier save from the open world; use **Continue Quick Session** to return to it. Starting a new session asks before replacing its existing save. Mission progress itself is not resumed after a reload.
+2. **Enter the Open World** to start in the Crownless March. **Quick War** begins the first RTS war campaign, while **Classic 36 Min Rift Operation** starts the earlier six-stage shooter mission. Quick sessions have a separate save from the open world. An active War Rift shows **Resume Quick War** or **Resume World War** and returns to its latest checkpoint. Starting a new session asks before replacing its existing save. Classic shooter missions and dungeons still return to the frontier after reload.
 3. For modular source, use Node.js 22+: `npm start` and visit `http://127.0.0.1:3040` (the server prints the address). `npm test` runs the deterministic simulation tests; `npm run build` recreates the offline HTML. `npm run benchmark` measures headless CPU battle-step costs (not actual game FPS).
 4. Open [`legacy/CROWNFOLD-ORIGINAL.html`](legacy/CROWNFOLD-ORIGINAL.html) for the original rotating 3D board-game experiment.
 
 ## Rust gameplay foundation
 
-War Rift formation routes and cover occlusion now run in a dependency-free Rust library compiled to WebAssembly. The same crate builds natively; the current renderer, UI, RPG and broader simulation remain JavaScript. This is an incremental Rust migration, not a complete native port or an AAA-quality claim.
+War Rift formation routes, cover occlusion and the four siege objective transitions now run in a dependency-free Rust library compiled to WebAssembly. The same crate builds natively; the current renderer, UI, RPG, combat and checkpoint storage remain JavaScript. This is an incremental Rust migration, not a complete native port or an AAA-quality claim.
 
 The offline build embeds the Rust module and requires no installation. Its footer reports **RUST TACTICS · WASM**, or an explicit JavaScript compatibility mode if WebAssembly is unavailable. `npm run build:rust` regenerates the kernel with the pinned Rust toolchain; `npm run check:rust` verifies it matches source. See [the Rust-first architecture and next playable milestone](docs/TECH_STACK_2026.md).
 
@@ -29,7 +29,7 @@ The offline build embeds the Rust module and requires no installation. Its foote
 | TAB | Enter live RTS command without pausing the battlefield; the player remains in place while the tactical camera pans |
 | RTS camera: WASD / mouse wheel / drag | Pan and zoom the map independently; box-select allied battalions and right-click terrain to move them |
 | Shift-click / Ctrl+1–5 / Alt+1–5 | Add formations, save five control groups, recall groups |
-| ` (backtick) | Toggle compact RTS map view and expanded army-production console |
+| ` (backtick) | Open the paused six-weapon arsenal in soldier view; toggle compact console in RTS view |
 | War command panel | Train 13 cross-era battalions, select formation stances, summon Timefall reserves or strike with Epoch Lance, and build field structures |
 | T then Q | Pick destination era, then Chronofold a 24-meter tile (rotate contents and imbue its era) |
 | Z / F / G / V | Echo rewind / orbital strike / grenade / resupply |
@@ -37,6 +37,14 @@ The offline build embeds the Rust module and requires no installation. Its foote
 | I / P / L / O / C / U | Inventory / perks / quests / map / Chronicle / homestead |
 | B / N / H / J / K | Build menu / recruit / heal / rations / water |
 | ESC | Pause / close an RPG panel / exit dialogue |
+
+## Resume a War Rift
+
+Pause, choose **Save Progress Now**, or return to the title to checkpoint a running siege. Autosave runs every 30 seconds and when the tab is hidden. The matching Continue button becomes **Resume World War** or **Resume Quick War**. Time does not elapse while the game is closed.
+
+Checkpoints retain formations, individual casualties, movement orders, control groups, production queues, pending supports, cover damage, supplies, active optional sorties, extraction progress, player ammunition and cooldowns, Fold fields, and your original return location/era. Rust validates the objective state and chooses the next siege act/outcome. Loading itself grants no rewards.
+
+The existing frontier save format remains readable. If its optional war checkpoint is damaged or unsupported, the game restores frontier progress and shows a warning. A failed storage write leaves the previous save untouched and warns you to keep the game open. Returning to the title after a failed write requires choosing to leave without saving. Browser storage is local, can be cleared by the browser, and is not cloud sync or an external backup. Classic shooter missions and dungeons do not yet resume mid-mission.
 
 ## Player comfort settings
 
@@ -51,6 +59,12 @@ This is an initial comfort pass, not complete accessibility support, key rebindi
 New frontier players are guided to Mira Vale for their first quest. Press **L** to track an active or ready quest. Its marker leads to remaining harvest resources, living enemies, unopened caches, undiscovered landmarks or the required vault. Finished quests keep pointing to their giver until you claim the reward. In another era, the guide points to the return rift instead of reusing medieval coordinates.
 
 Build and craft tasks show the relevant controls, and searches with no local target explain what to find instead of pointing at an unrelated gate. Offscreen arrows show where to turn, including targets behind you; the minimap highlights the current destination. These markers are guidance, not obstacle-aware travel routes. War and dungeon objectives keep their existing priority. Tracking uses existing saves without a format change.
+
+## Field arsenal
+
+Press **` (backtick)** in soldier view or click **Arsenal** beside the weapon name. All six weapons show their role, direct damage, range, reload time and available ammunition. Choose with the mouse, **1–6** or arrow keys, then **Enter** or **Equip** to return. Escape or Cancel returns without changing weapons. Opening the arsenal pauses combat and the mission clock; it never replaces either save. The RTS backtick shortcut remains the compact console.
+
+The weapon HUD now shows a reload progress bar and remaining seconds, low ammunition and empty-magazine prompts. Equipping another weapon cancels the current reload as before; keeping the same weapon or cancelling the selector preserves it. Existing 1–3 and mouse-wheel shortcuts remain available. Damage labels show base direct damage, not guaranteed damage after armor, pellets, weak points or explosions.
 
 ## The Great Entanglement
 
@@ -71,7 +85,7 @@ A king may rent a railgun. A mammoth hunter may destroy an oracle army using unn
 - Dynamic optional crisis director with three recurring objectives: secure a lost archive, destroy a hostile chronal spire or escort displaced civilians; success grants supplies and Insight, failure strengthens enemy logistics.
 - Two destructible defensive Chronal Anchors protect the enemy throne. Player firearms, explosions, and commanded battalions can breach them, making the campaign a multi-stage siege.
 - Commander heritages are chosen independently of world era; the calendar itself has no universal damage advantage. Combat counters depend on battalion roles, equipped sciences, and local Fold fields.
-- Persistent browser-local RPG save with backwards migration from the previous v0.3 prototype. War operations do not save mid-battle; victory rewards persist.
+- Persistent browser-local RPG save with backwards migration from the previous v0.3 prototype. War Rifts resume mid-battle from browser-local checkpoints; classic shooter operations still restore frontier progress. Victory rewards persist.
 - Original six-phase 36-minute shooter operations plus original standalone chess-inspired rotating board game.
 
 ### Authored first siege: Eleven Bells

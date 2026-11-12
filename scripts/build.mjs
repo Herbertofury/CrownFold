@@ -2,7 +2,7 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const sources=['settings','rust-tactics-data','rust-tactics','battlefield-js','battlefield','lineage','temporal','war','rpg','sim','navigation','render','game'],imports={};
+const sources=['settings','rust-tactics-data','rust-tactics','battlefield-js','battlefield','war-objectives','war-checkpoint','lineage','temporal','war','rpg','sim','navigation','arsenal','render','game'],imports={};
 for(const name of sources){let source=await readFile(path.join(root,`src/${name}.mjs`),'utf8');for(const dep of sources)source=source.replaceAll(`'./${dep}.mjs'`,`'riftfront-${dep}'`);imports[`riftfront-${name}`]=`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;}
 let html=await readFile(path.join(root,'index.html'),'utf8'),css=await readFile(path.join(root,'style.css'),'utf8');
 html=html.replace('<link rel="stylesheet" href="style.css">',`<style>${css}</style>`)

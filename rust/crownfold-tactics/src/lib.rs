@@ -1,5 +1,6 @@
 //! CrownFold's engine-independent tactical kernel. No renderer, clock or RNG.
 //! Geometry intentionally preserves the browser simulation's existing semantics.
+pub mod objectives;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 

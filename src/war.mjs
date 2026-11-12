@@ -4,6 +4,7 @@
 import {ERAS,ERA_ORDER,battleAffinity,facetAt,stampFacet,temporalModifier} from './temporal.mjs';
 import {WAR_POWERS,COMMANDER_HERITAGES,equippedTech,lineageModifiers,lineageEconomy,lineageTrainingFactor,lineageCooldownFactor} from './lineage.mjs';
 import {makeBattlefieldCover,warPath,firstCoverBetween} from './battlefield.mjs';
+import {stepObjectives} from './war-objectives.mjs';
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 export const WAR_STANCES=Object.freeze({
@@ -191,23 +192,22 @@ function warExtractionWave(s){const w=s.war,ex=w.extraction;if(ex.waves>=3||w.en
  const g=makeGroup(s,type,'enemy',side*93,-116+ex.waves*14);g.order='move';g.tx=ex.x;g.tz=ex.z;g.stance='charge';w.enemyArmy.push(g);
  ex.waves++;pushEvent(w,`ENEMY REARGUARD / ${BATTALIONS[type].name} APPROACHING EVAC`);
 }
-function stepWarActs(s,dt){const w=s.war;if(w.base.hp<=0){w.victory='enemy';pushEvent(w,'YOUR CITADEL FELL / CAMPAIGN LOST');return;}
- if(w.act==='foothold'){
-  const count=w.nodes.filter(n=>n.owner==='ally').length;
-  w.footholdHold=clamp(w.footholdHold+(count>=2?dt:-dt*.7),0,w.footholdTarget);
-  if(w.footholdHold>=w.footholdTarget){w.act='anchors';w.supplies=Math.min(900,w.supplies+65);pushEvent(w,'BEACHHEAD SECURED / +65 SUPPLIES / BREAK THE TWO ANCHORS');}
- }else if(w.act==='anchors'){
-  if(!activeAnchors(w).length){w.act='throne';pushEvent(w,'THE CHRONAL SHIELD HAS FALLEN / ASSAULT THE THRONE');}
- }else if(w.act==='throne'){
-  if(w.enemyBase.hp<=0){w.act='extraction';w.enemyWaveTimer=1e9;closeBellSorties(w);w.expedition=null;pushEvent(w,'THRONE DOWN / EXTRACT BEFORE THE RIFT COLLAPSES');}
- }else if(w.act==='extraction'){
-  const ex=w.extraction;if(!ex.active)return;
+function stepWarActs(s,dt){const w=s.war,ex=w.extraction,previous=w.act;
+ // Rearguard arrives before objective sampling, exactly as during uninterrupted play.
+ if(w.base.hp>0&&w.act==='extraction'&&ex.active){
   ex.nextWave-=dt;if(ex.nextWave<=0){warExtractionWave(s);ex.nextWave=12;}
-  const allies=w.army.some(g=>g.count>0&&distance(g,ex)<17),player=distance(s.player,ex)<12;
-  const enemy=w.enemyArmy.some(g=>g.count>0&&distance(g,ex)<19);
-  ex.contested=enemy;
-  ex.progress=clamp(ex.progress+(allies||player?enemy?-.6:1:-.2)*dt,0,ex.target);
-  if(ex.progress>=ex.target){w.victory='ally';pushEvent(w,'EXTRACTION COMPLETE / WAR WON / YOUR COMPANY SURVIVED');}
+ }
+ const present=w.army.some(g=>g.count>0&&distance(g,ex)<17)||distance(s.player,ex)<12;
+ const contested=w.enemyArmy.some(g=>g.count>0&&distance(g,ex)<19);
+ if(w.act==='extraction'&&ex.active)ex.contested=contested;
+ stepObjectives(w,{wells:w.nodes.filter(n=>n.owner==='ally').length,anchors:activeAnchors(w).length,
+  throneAlive:w.enemyBase.hp>0,homeAlive:w.base.hp>0,present,contested},dt);
+ if(w.victory==='enemy')pushEvent(w,'YOUR CITADEL FELL / CAMPAIGN LOST');
+ else if(w.victory==='ally')pushEvent(w,'EXTRACTION COMPLETE / WAR WON / YOUR COMPANY SURVIVED');
+ else if(previous!==w.act){
+  if(w.act==='anchors'){w.supplies=Math.min(900,w.supplies+65);pushEvent(w,'BEACHHEAD SECURED / +65 SUPPLIES / BREAK THE TWO ANCHORS');}
+  if(w.act==='throne')pushEvent(w,'THE CHRONAL SHIELD HAS FALLEN / ASSAULT THE THRONE');
+  if(w.act==='extraction'){w.enemyWaveTimer=1e9;closeBellSorties(w);w.expedition=null;pushEvent(w,'THRONE DOWN / EXTRACT BEFORE THE RIFT COLLAPSES');}
  }
 }
 // Cover has physical durability, blocks lines of fire, and is shared between both armies.
