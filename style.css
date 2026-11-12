@@ -107,6 +107,9 @@ body.command-compact #commander-panel .commander-compact{margin:0}
 #title-settings{margin-left:12px;white-space:nowrap}.reduced-hud-effects #damage-flash,.reduced-hud-effects .scanlines{display:none}.reduced-hud-effects *,.reduced-hud-effects *::before,.reduced-hud-effects *::after{animation:none!important;transition:none!important}
 @media(max-width:600px),(max-height:650px){.settings-dialog{padding:20px}.settings-dialog h2{font-size:27px}.settings-actions{flex-wrap:wrap}.settings-actions .button{flex-basis:180px}}
 
+/* Wayfinding remains legible and never intercepts battlefield input. */
+.world-marker{width:240px;max-width:56vw;pointer-events:none;text-align:center}.world-marker b{overflow-wrap:anywhere}.world-marker.offscreen{padding:6px;background:#071820df;border:1px solid #bba36b66;border-radius:6px}.world-marker.offscreen>span{line-height:1}
+
 /* Inspect all six weapons without cycling blindly or spending combat time. */
 .arsenal-dialog{color:var(--ink);background:linear-gradient(135deg,#10282fee,#0c1926fa);border:1px solid #83b7a5;border-radius:8px;box-shadow:0 24px 100px #000c;width:min(940px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:28px}
 .arsenal-dialog::backdrop{background:#020e17b8;backdrop-filter:blur(4px)}

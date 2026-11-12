@@ -54,6 +54,12 @@ Changes apply immediately and persist on this browser, separately from both camp
 
 This is an initial comfort pass, not complete accessibility support, key rebinding or controller support. Browser audio gain is testable, but listening on actual speakers/headphones remains a human check.
 
+## Quest wayfinding
+
+New frontier players are guided to Mira Vale for their first quest. Press **L** to track an active or ready quest. Its marker leads to remaining harvest resources, living enemies, unopened caches, undiscovered landmarks or the required vault. Finished quests keep pointing to their giver until you claim the reward. In another era, the guide points to the return rift instead of reusing medieval coordinates.
+
+Build and craft tasks show the relevant controls, and searches with no local target explain what to find instead of pointing at an unrelated gate. Offscreen arrows show where to turn, including targets behind you; the minimap highlights the current destination. These markers are guidance, not obstacle-aware travel routes. War and dungeon objectives keep their existing priority. Tracking uses existing saves without a format change.
+
 ## Field arsenal
 
 Press **` (backtick)** in soldier view or click **Arsenal** beside the weapon name. All six weapons show their role, direct damage, range, reload time and available ammunition. Choose with the mouse, **1–6** or arrow keys, then **Enter** or **Equip** to return. Escape or Cancel returns without changing weapons. Opening the arsenal pauses combat and the mission clock; it never replaces either save. The RTS backtick shortcut remains the compact console.
