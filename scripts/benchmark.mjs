@@ -1,5 +1,6 @@
 // Reproducible aggregate-war CPU benchmark. It does not measure rendering or real-GPU FPS.
 // Run: npm run benchmark. This is a stress harness, not an AAA certification.
+import {tacticalRuntime} from '../src/battlefield.mjs';
 import {performance} from 'node:perf_hooks';
 import {createGame,enterOperation} from '../src/sim.mjs';
 import {stepWarfront,WAR_CAMPAIGNS,BATTALIONS} from '../src/war.mjs';
@@ -47,4 +48,4 @@ for(let index=0;index<WAR_CAMPAIGNS.length;index++){
 }
 console.log(JSON.stringify({name:'CrownFold aggregate simulation benchmark',
  scope:'Node.js headless logic only, excludes rendering, GPU, networking and player-input latency',
- runtime:process.version,stepRateHz:30,results},null,2));
+ runtime:process.version,tactics:tacticalRuntime(),stepRateHz:30,results},null,2));
