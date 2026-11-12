@@ -151,7 +151,13 @@ export function rpgEvent(s,type,target='any',amount=1){if(!s.rpg)return;
   let n=Math.max(0,amount);if(type==='dungeon'){if(b.unique.includes(target))n=0;else b.unique.push(target);}
   b.progress=limit(b.progress+n,0,b.goal.count);if(b.progress>=b.goal.count){b.status='ready';rpgMessage(s,`BOUNTY COMPLETE / RETURN TO THE NOTICE BOARD`,'success');}}
 for(const [id,state] of Object.entries(s.rpg.quests)){if(state.status!=='active')continue;const q=QUEST_BY_ID[id];if(!q||q.goal.type!==type||q.goal.target!=='any'&&q.goal.target!==target)continue;const increment=type==='dungeon'&&q.goal.target==='any'?(state.unique??=[]).includes(target)?0:(state.unique.push(target),1):Math.max(0,amount);state.progress=limit(state.progress+increment,0,q.goal.count);if(state.progress>=q.goal.count){state.status='ready';rpgMessage(s,`QUEST READY / RETURN TO ${NPC_BY_ID[q.giver]?.name||'THE GIVER'}`,'success');}}}
-export function craft(s,id){const spec=RECIPES[id];if(!spec)return false;const discount=rpgStat(s,'discount');for(const [k,n]of Object.entries(spec.cost))if((s.inventory[k]||0)<Math.ceil(n*discount))return false;
+// A recipe is atomic: never pay for output that cannot fit in the loadout.
+export function craftingStatus(s,id){const spec=RECIPES[id];if(!spec)return{ok:false,reason:'UNKNOWN RECIPE',cost:{}};
+ const discount=rpgStat(s,'discount'),cost=Object.fromEntries(Object.entries(spec.cost).map(([k,n])=>[k,Math.ceil(n*discount)]));
+ if(spec.result.grenades&&s.player.grenades+spec.result.grenades>12)return{ok:false,reason:'NEED ROOM FOR 3 GRENADES',cost};
+ const missing=Object.entries(cost).filter(([k,n])=>(s.inventory[k]||0)<n).map(([k,n])=>`${n-(s.inventory[k]||0)} ${k.toUpperCase()}`);
+ return{ok:missing.length===0,reason:missing.length?`NEED ${missing.join(' · ')}`:'READY TO CRAFT',cost};}
+export function craft(s,id){const status=craftingStatus(s,id);if(!status.ok){rpgMessage(s,status.reason,'warning');return false;}const spec=RECIPES[id],discount=rpgStat(s,'discount');
  for(const [k,n] of Object.entries(spec.cost))s.inventory[k]-=Math.ceil(n*discount);for(const [k,n]of Object.entries(spec.result)){if(k==='gear')generateGear(s,n,Math.max(1,Math.floor(s.player.level/2)+1),spec.cost.flux||0);else if(k==='grenades')s.player.grenades=limit(s.player.grenades+n,0,12);else if(k==='ammo')for(const [weapon,amt]of Object.entries({rifle:110,scatter:36,rail:24,smg:160,cryo:60,launcher:10}))s.player.reserve[weapon]+=amt;else s.inventory[k]=(s.inventory[k]||0)+n;}
  s.rpg.totalCrafted++;rpgEvent(s,'craft',id,1);rpgMessage(s,`CRAFTED / ${spec.name}`,'success');return true;}
 export function markDiscovered(s,id){if(s.zone!=='frontier'||s.rpg.discovered.includes(id)||!LANDMARKS.some(p=>p.id===id))return false;s.rpg.discovered.push(id);rpgMessage(s,`DISCOVERED / ${LANDMARKS.find(p=>p.id===id).name}`,'success');grantXP(s,32);rpgEvent(s,'discover',id);return true;}
