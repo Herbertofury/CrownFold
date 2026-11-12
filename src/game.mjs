@@ -368,7 +368,14 @@ canvas.addEventListener('pointerup',e=>{if(!commander||!commanderDrag||e.button!
  else{issueOrder(s,order,p.x,p.z);sound('notification');}
 });
 canvas.addEventListener('pointerup',e=>{if(e.button===0)input.fire=false;if(e.button===2){input.aim=false;document.body.classList.remove('aiming');}});
-window.addEventListener('pointerup',()=>{input.fire=false;});
+function releasePointerInput(e){
+ // Releases can land on HUD panels instead of the canvas. Cancel unfinished
+ // selections rather than issuing a stale move order on the next gesture.
+ if(e.type==='pointercancel'||e.button===0){input.fire=false;commanderDrag=null;selectBox.classList.add('hidden');}
+ if(e.type==='pointercancel'||e.button===2){input.aim=false;document.body.classList.remove('aiming');}
+}
+window.addEventListener('pointerup',releasePointerInput);
+window.addEventListener('pointercancel',releasePointerInput);
 window.addEventListener('mousemove',e=>{
  if(arsenalDialog.open||!active||paused||commander||help||buildMenu||rpgMenu||dialogue||lockMenu)return;
  if(document.pointerLockElement===canvas||e.buttons&2){const delta=aimDelta(e.movementX,e.movementY,settings);input.yaw+=delta.yaw;input.pitch=clamp(input.pitch+delta.pitch,-.92,.53);}
