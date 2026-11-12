@@ -120,11 +120,13 @@ function chooseArsenal(id){
 function closeArsenal(equip=false){
  if(!arsenalDialog.open)return;
  if(equip&&setWeapon(s,arsenalChoice))sound('notification');
- arsenalDialog.close();
+ arsenalDialog.close();$('arsenal-button').focus({preventScroll:true});
 }
 $('arsenal-button').onclick=openArsenal;$('arsenal-cancel').onclick=()=>closeArsenal();$('arsenal-equip').onclick=()=>closeArsenal(true);
+arsenalDialog.addEventListener('cancel',e=>{e.preventDefault();closeArsenal();});
 arsenalDialog.addEventListener('close',()=>{keys.clear();input.fire=false;input.aim=false;bank=0;arsenalChoice=null;refresh(true);pointer();});
 arsenalDialog.addEventListener('keydown',e=>{
+ if(!arsenalDialog.open)return;
  // A closing key must not bubble back into the global opener.
  e.stopPropagation();
  const cards=[...$('arsenal-grid').children],controls=[...arsenalDialog.querySelectorAll('button')];
