@@ -9,7 +9,7 @@ CrownFold is an original open-world third-person survival RPG with live RTS comm
 ## Play without installation
 
 1. Download/open [`dist/CROWNFOLD-RIFTFRONT.html`](dist/CROWNFOLD-RIFTFRONT.html) in a desktop browser; it embeds all scripts and styles and plays offline.
-2. **Enter the Open World** to start in the Crownless March. **Quick War** begins the first RTS war campaign, while **Classic 36 Min Rift Operation** starts the earlier six-stage shooter mission.
+2. **Enter the Open World** to start in the Crownless March. **Quick War** begins the first RTS war campaign, while **Classic 36 Min Rift Operation** starts the earlier six-stage shooter mission. Quick sessions have a separate frontier save from the open world; use **Continue Quick Session** to return to it. Starting a new session asks before replacing its existing save. Mission progress itself is not resumed after a reload.
 3. For modular source, use Node.js 22+: `npm start` and visit `http://localhost:3000` (the server prints the address). `npm test` runs the deterministic simulation tests; `npm run build` recreates the offline HTML. `npm run benchmark` measures headless CPU battle-step costs (not actual game FPS).
 4. Open [`legacy/CROWNFOLD-ORIGINAL.html`](legacy/CROWNFOLD-ORIGINAL.html) for the original rotating 3D board-game experiment.
 
@@ -53,6 +53,10 @@ A king may rent a railgun. A mammoth hunter may destroy an oracle army using unn
 - Commander heritages are chosen independently of world era; the calendar itself has no universal damage advantage. Combat counters depend on battalion roles, equipped sciences, and local Fold fields.
 - Persistent browser-local RPG save with backwards migration from the previous v0.3 prototype. War operations do not save mid-battle; victory rewards persist.
 - Original six-phase 36-minute shooter operations plus original standalone chess-inspired rotating board game.
+
+### Combat impact update
+
+Player weapon pellets resolve against the nearest individual enemy, war battalion, anchor, objective or fortification. Cover blocks shots behind it, tracers end at the impact, and launcher blasts begin at that point. War targets use finite-height approximate collision volumes over local terrain; they are not detailed mesh collisions. Weapon range and aim elevation apply to these impacts.
 
 ### Warforged combat and tactical movement — new in v0.8
 
