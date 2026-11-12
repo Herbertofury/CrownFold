@@ -166,3 +166,7 @@ Original concept and current prototype by the CrownFold project. Source is curre
 ### Background interruption safety
 
 Switching away from the game pauses combat, clears held movement/fire input and checkpoints the active slot. Returning to the tab does not resume combat automatically; use Resume or Escape. The automated browser regression dispatches focus/visibility events to the actual offline game; operating-system tab switching is not separately qualified.
+
+## Comparable projects and competitive research
+
+See [comparable games/mods, design benchmarks and evidence-led evaluation tasks](COMPETITORS.md). This dated research distinguishes current capabilities from improvement goals and complements existing roadmap and wiki research.
