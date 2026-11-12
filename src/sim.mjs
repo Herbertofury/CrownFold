@@ -2,7 +2,7 @@
 // All persistent gameplay state lives here; rendering, audio and input never own it.
 import {makeRPG,generateBounty,restoreRPG,rpgStat,grantXP,rpgEvent,discoverNearby,markDiscovered,openChest,LANDMARKS,LOCKBOXES,NPCS,DUNGEON_BY_ID,DUNGEONS,perkRank} from './rpg.mjs';
 import {ERA_ORDER,ERAS,CHRONICLE,availableRifts,eraSites,makeTemporal,migrateTemporal,epochSeed,validEra,cycleFacetEra,stampFacet,facetAt,temporalModifier} from './temporal.mjs';
-import {WAR_CAMPAIGNS,createWarfront,trainBattalion,constructWarBuilding,warOrder,stepWarfront,warObjective,signalWarExtraction,traceWarShot,applyWarShot,warExplosion} from './war.mjs';
+import {WAR_CAMPAIGNS,createWarfront,trainBattalion,constructWarBuilding,warOrder,stepWarfront,warObjective,bellSiegeReport,signalWarExtraction,traceWarShot,applyWarShot,warExplosion} from './war.mjs';
 export const SEED = 0xC0F01D;
 export const TAU = Math.PI * 2;
 export const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
@@ -238,7 +238,8 @@ function startStage(s){const op=s.operation;if(!op)return;op.stageStart=s.time;c
   emit(s,`PHASE ${op.stage+1}/6 / ${o.name}`,'success');}
 function advance(s){const op=s.operation;if(!op)return;op.stage++;if(op.stage>=6){finishOperation(s,true);return;}startStage(s);}
 export function finishOperation(s,success=true){const op=s.operation;if(!op)return false;const p=s.player;const earned=success?100+op.difficulty*60+Math.round(op.timeLeft/30):25;
-  s.inventory.scrap+=earned;s.inventory.ore+=success?24:7;s.inventory.flux+=success?70:18;if(success&&op.kind==='war'){const id=CONTRACTS[op.contract].id;if(id&&!s.temporal.wonCampaigns.includes(id)){s.temporal.wonCampaigns.push(id);s.temporal.insight+=18;s.temporal.chronicleLog.push(`Liberated ${CONTRACTS[op.contract].region} from the ${ERAS[op.era||s.era].name}`);}}if(success){s.inventory.medkit+=2;s.stats.missions++;rpgEvent(s,'operation',String(op.contract));grantXP(s,230+op.difficulty*45);s.rpg.coins+=130+op.difficulty*30;}s.zone='frontier';s.era=s.temporal.returnEra||'medieval';s.seed=epochSeed(s.temporal.baseSeed,s.era);p.x=s.lastZonePos.x+3;p.z=s.lastZonePos.z+3;p.y=terrainHeight(p.x,p.z,s.seed,'frontier');p.memories=[];p.hp=Math.max(45,p.hp);p.shield=p.maxShield;
+  const siegeReport=bellSiegeReport(s.war,success);if(siegeReport){s.temporal.chronicleLog.push(siegeReport);s.temporal.chronicleLog=s.temporal.chronicleLog.slice(-40);emit(s,'ELEVEN BELLS FIELD REPORT SAVED / C TO READ THE CHRONICLE','command');}
+  s.inventory.scrap+=earned;s.inventory.ore+=success?24:7;s.inventory.flux+=success?70:18;if(success&&op.kind==='war'){const id=CONTRACTS[op.contract].id;if(id&&!s.temporal.wonCampaigns.includes(id)){s.temporal.wonCampaigns.push(id);s.temporal.insight+=18;s.temporal.chronicleLog.push(`Liberated ${CONTRACTS[op.contract].region} from the ${ERAS[op.era||s.era].name}`);}}if(success){s.inventory.medkit+=2;s.stats.missions++;rpgEvent(s,'operation',String(op.contract));grantXP(s,230+op.difficulty*45);s.rpg.coins+=130+op.difficulty*30;}s.temporal.chronicleLog=s.temporal.chronicleLog.slice(-40);s.zone='frontier';s.era=s.temporal.returnEra||'medieval';s.seed=epochSeed(s.temporal.baseSeed,s.era);p.x=s.lastZonePos.x+3;p.z=s.lastZonePos.z+3;p.y=terrainHeight(p.x,p.z,s.seed,'frontier');p.memories=[];p.hp=Math.max(45,p.hp);p.shield=p.maxShield;
   s.enemies=[];s.projectiles=[];s.hostileShots=[];s.buildings=s.buildings.filter(b=>b.zone==='frontier');s.spawnTimer=6;for(const u of s.squad){u.x=p.x+2;u.z=p.z+3;u.order='follow';}
   emit(s,success?`OPERATION SUCCESS / +${earned} SCRAP / RELIC SECURED`:`OPERATION ABORTED / +${earned} SALVAGE`,success?'success':'warning');s.operation=null;s.war=null;return true;
 }
