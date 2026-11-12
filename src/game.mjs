@@ -120,11 +120,13 @@ function chooseArsenal(id){
 function closeArsenal(equip=false){
  if(!arsenalDialog.open)return;
  if(equip&&setWeapon(s,arsenalChoice))sound('notification');
- arsenalDialog.close();$('arsenal-button').focus({preventScroll:true});
+ arsenalDialog.close();finishArsenalClose();
 }
 $('arsenal-button').onclick=openArsenal;$('arsenal-cancel').onclick=()=>closeArsenal();$('arsenal-equip').onclick=()=>closeArsenal(true);
 arsenalDialog.addEventListener('cancel',e=>{e.preventDefault();closeArsenal();});
-arsenalDialog.addEventListener('close',()=>{keys.clear();input.fire=false;input.aim=false;bank=0;arsenalChoice=null;refresh(true);pointer();});
+function finishArsenalClose(){keys.clear();input.fire=false;input.aim=false;bank=0;arsenalChoice=null;refresh(true);$('arsenal-button').focus({preventScroll:true});pointer();}
+// Native close events are queued. An older close must not reset a newly opened selector.
+arsenalDialog.addEventListener('close',()=>{if(!arsenalDialog.open&&arsenalChoice!==null)finishArsenalClose();});
 arsenalDialog.addEventListener('keydown',e=>{
  if(!arsenalDialog.open)return;
  // A closing key must not bubble back into the global opener.

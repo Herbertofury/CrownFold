@@ -80,7 +80,10 @@ with sync_playwright() as pw:
   checks['war_mission_clock_pauses']=time_left==page.evaluate('window.__riftfront.state.operation.timeLeft')
   page.keyboard.press('6');page.keyboard.press('Enter');page.wait_for_function('window.__riftfront.state.operation.timeLeft<'+str(time_left))
   checks['war_resumes_with_selected_weapon']=state(page)['weapon']=='launcher'
- except Exception as exc:errors.append(repr(exc)+'\n'+traceback.format_exc(limit=8))
+ except Exception as exc:
+  errors.append(repr(exc)+'\n'+traceback.format_exc(limit=8))
+  errors.append('UI diagnostic: '+json.dumps(page.evaluate('({open:document.querySelector("#arsenal-dialog").open,focus:document.activeElement.outerHTML,weapon:window.__riftfront.state.player.weapon,selected:document.querySelector(".arsenal-card[aria-pressed=true]")?.dataset.weapon,paused:window.__riftfront.paused})')))
+  page.screenshot(path=str(OUT/'arsenal-failure.png'))
  finally:browser.close()
 checks['no_browser_errors']=not errors
 result={'checks':checks,'passed':sum(checks.values()),'total':len(checks),'errors':errors}
