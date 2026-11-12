@@ -4,14 +4,20 @@
 
 CrownFold is an original open-world third-person survival RPG with live RTS command, cross-era armies, and time-space terrain manipulation. You begin in **1278, The Crownless March**, and can cross **Advanced Rifts** into separate persistent procedural worlds in 12,400 BCE, 1889, 2086, and 8420. **War Rifts** open real-time army campaigns with a 36-minute limit and commanders who can keep fighting in third person. The original rotating 3D board game is preserved as a separate playable legacy mode.
 
-> **Current release: v0.8 experimental browser vertical slice. Not a finished AAA production or a Skyrim-scale handcrafted world.** The longer-term game vision is deliberately larger than the implemented prototype.
+> **Current release: v0.8 experimental browser vertical slice with Rust/Wasm tactics. Not a finished AAA production or a Skyrim-scale handcrafted world.** The longer-term game vision is deliberately larger than the implemented prototype.
 
 ## Play without installation
 
 1. Download/open [`dist/CROWNFOLD-RIFTFRONT.html`](dist/CROWNFOLD-RIFTFRONT.html) in a desktop browser; it embeds all scripts and styles and plays offline.
 2. **Enter the Open World** to start in the Crownless March. **Quick War** begins the first RTS war campaign, while **Classic 36 Min Rift Operation** starts the earlier six-stage shooter mission. Quick sessions have a separate frontier save from the open world; use **Continue Quick Session** to return to it. Starting a new session asks before replacing its existing save. Mission progress itself is not resumed after a reload.
-3. For modular source, use Node.js 22+: `npm start` and visit `http://localhost:3000` (the server prints the address). `npm test` runs the deterministic simulation tests; `npm run build` recreates the offline HTML. `npm run benchmark` measures headless CPU battle-step costs (not actual game FPS).
+3. For modular source, use Node.js 22+: `npm start` and visit `http://127.0.0.1:3040` (the server prints the address). `npm test` runs the deterministic simulation tests; `npm run build` recreates the offline HTML. `npm run benchmark` measures headless CPU battle-step costs (not actual game FPS).
 4. Open [`legacy/CROWNFOLD-ORIGINAL.html`](legacy/CROWNFOLD-ORIGINAL.html) for the original rotating 3D board-game experiment.
+
+## Rust gameplay foundation
+
+War Rift formation routes and cover occlusion now run in a dependency-free Rust library compiled to WebAssembly. The same crate builds natively; the current renderer, UI, RPG and broader simulation remain JavaScript. This is an incremental Rust migration, not a complete native port or an AAA-quality claim.
+
+The offline build embeds the Rust module and requires no installation. Its footer reports **RUST TACTICS · WASM**, or an explicit JavaScript compatibility mode if WebAssembly is unavailable. `npm run build:rust` regenerates the kernel with the pinned Rust toolchain; `npm run check:rust` verifies it matches source. See [the Rust-first architecture and next playable milestone](docs/TECH_STACK_2026.md).
 
 ## Controls
 
@@ -74,7 +80,7 @@ Player weapon pellets resolve against the nearest individual enemy, war battalio
 
 ## Not yet implemented
 
-Real Unreal Engine production, seamless continent-scale terrain streaming, thousands of *individually simulated* RTS soldiers, historically accurate assets, unique handcrafted cities/dungeons for every era, dialogue voiceover, dynamic city life economies, vehicles, faction diplomacy simulation, co-op servers, cinematic campaigns, sophisticated siege destruction and full build placement are **design goals**, not current features. The current war layer uses aggregate battalions for responsiveness, and era overlays do not physically sculpt the terrain mesh.
+A full native Rust game executable, seamless continent-scale terrain streaming, thousands of *individually simulated* RTS soldiers, historically accurate assets, unique handcrafted cities/dungeons for every era, dialogue voiceover, dynamic city life economies, vehicles, faction diplomacy simulation, co-op servers, cinematic campaigns, sophisticated siege destruction and full build placement are **design goals**, not current features. The current war layer uses aggregate battalions for responsiveness, and era overlays do not physically sculpt the terrain mesh.
 
 ## Documentation / wiki mirror
 
@@ -97,7 +103,8 @@ index.html, style.css          Developer mode web UI
 src/temporal.mjs              Era descriptions, portal maps, Chronofold and affinity
 src/lineage.mjs               Commander heritage, lost technologies and fusion doctrines
 src/war.mjs                   War campaigns, battalions, economy and enemy strategy
-src/battlefield.mjs           Destructible cover geometry and A* formation routing
+rust/crownfold-tactics        Native/Wasm Rust tactical geometry and A*
+src/battlefield.mjs           Rust runtime adapter with JS compatibility fallback
 src/sim.mjs                   Real-time movement, combat, portals, missions, save/load
 src/rpg.mjs                   RPG quests, NPCs, factions, crafting and companions
 src/render.mjs                Procedural WebGL2 / software 3D world renderer

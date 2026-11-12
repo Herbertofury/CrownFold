@@ -244,7 +244,8 @@ export class WorldRenderer {
   ctx.save();ctx.scale(this.canvas.width/w,this.canvas.height/h);
   const triangles=[], light=v.norm([.5,1,-.4]);
   const addTriangle=(ps,color,depth)=>{if(ps.some(p=>!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)||p.depth<.7||Math.abs(p.x)>w*2.5||Math.abs(p.y)>h*2.5))return;triangles.push({ps,color,depth});};
-  const cell=13,extent=91,p=s.player;
+  // Match scene streaming: RTS pans the view independently of the stationary player.
+  const cell=13,extent=91,p=this.focus||s.player;
   for(let iz=-extent;iz<extent;iz+=cell)for(let ix=-extent;ix<extent;ix+=cell){const x=Math.floor(p.x/cell)*cell+ix,z=Math.floor(p.z/cell)*cell+iz;
    const samples=[[x,z],[x+cell,z],[x+cell,z+cell],[x,z+cell]].map(([xx,zz])=>this.project([xx,terrainHeight(xx,zz,s.seed,s.zone),zz]));
    const c=terrainColor(x,z,terrainHeight(x,z,s.seed,s.zone),s.seed,s.zone,s.era,facetAt(s,x,z)?.era).map(k=>Math.round((k+.15)*180));

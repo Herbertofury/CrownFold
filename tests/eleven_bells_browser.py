@@ -18,8 +18,8 @@ with sync_playwright() as pw:
     page = browser.new_page(viewport={'width': 1600, 'height': 1000}, device_scale_factor=1)
     page.set_default_timeout(15000)
     page.on('pageerror', lambda error: errors.append(str(error)))
-    # Verify the honest software-rendered browser path. The held renderer patch
-    # is not included; no remote terrain visibility assertion is made here.
+    # Verify the software-rendered browser path. Distant terrain and the Rust
+    # runtime are exercised by their separate hosted integration harnesses.
     page.add_init_script('''
         const getContext = HTMLCanvasElement.prototype.getContext;
         HTMLCanvasElement.prototype.getContext = function(kind, ...args) {
