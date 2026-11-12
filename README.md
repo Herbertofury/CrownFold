@@ -54,6 +54,12 @@ A king may rent a railgun. A mammoth hunter may destroy an oracle army using unn
 - Persistent browser-local RPG save with backwards migration from the previous v0.3 prototype. War operations do not save mid-battle; victory rewards persist.
 - Original six-phase 36-minute shooter operations plus original standalone chess-inspired rotating board game.
 
+### Authored first siege: Eleven Bells
+
+The first War Rift now offers three named, one-time optional sorties as its acts unlock: recover the survey ledger for faster well capture, silence Ash Foundry to cut enemy supply income, and escort the Bellkeepers home for a 24-second extraction. Track an active sortie from the command console or explicitly leave it behind. Resolve it before destroying the throne. Your Chronicle records success, failure, skipped and missed orders after return, including withdrawals.
+
+These choices use the existing procedural battlefield and crisis mechanics. They do not establish 20–30-minute pacing, production art or a complete native port. The other four campaigns retain their repeatable crisis director. [Play instructions and exact scope](docs/ELEVEN_BELLS.md).
+
 ### Combat impact update
 
 Player weapon pellets resolve against the nearest individual enemy, war battalion, anchor, objective or fortification. Cover blocks shots behind it, tracers end at the impact, and launcher blasts begin at that point. War targets use finite-height approximate collision volumes over local terrain; they are not detailed mesh collisions. Weapon range and aim elevation apply to these impacts.
