@@ -1,0 +1,36 @@
+name: CrownFold dungeon progression
+on:
+  push:
+    branches: [fix/dungeon-quest-progression, main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  dungeon-progression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax, regression suite and offline artifact
+        run: |
+          npm run check
+          npm test
+          npm run build
+          git diff --exit-code -- dist/
+      - name: Install browser harness
+        run: |
+          python -m pip install playwright==1.62.0
+          python -m playwright install --with-deps chromium
+      - name: Complete the three-vault quest and ending through game controls
+        run: |
+          npm start > /tmp/crownfold-server.log 2>&1 &
+          for i in $(seq 1 30); do curl --fail http://127.0.0.1:3040/ >/dev/null 2>&1 && break; sleep 1; done
+          python tests/dungeon_progression_browser.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: crownfold-dungeon-progression-evidence
+          path: test-results/

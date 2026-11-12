@@ -59,7 +59,7 @@ test('quests accepted after an earlier vault clear guide only to eligible new cl
  const s=game();s.rpg.dungeonCleared=['glass'];takeQuest(s,'relic_hunter');s.player.x=-43;s.player.z=-54;
  assert.notEqual(frontierGuidance(s).goal.title,'THE MIRROR MAW');
  s.rpg.dungeonCleared=['glass','roots','archive'];assert.equal(frontierGuidance(s).goal,null);assert.match(frontierGuidance(s).hint,/Previously cleared vaults do not count/);
- takeQuest(s,'the_glass_key');assert.equal(frontierGuidance(s).goal,null);
+ takeQuest(s,'the_glass_key');assert.equal(s.rpg.quests.the_glass_key.status,'ready');assert.match(frontierGuidance(s).goal.title,/RETURN TO LYRA/);
 });
 test('HUD safe bounds keep directional markers out of occupied side and bottom panels',()=>{
  const bounds={left:435,right:1000,top:140,bottom:730};
