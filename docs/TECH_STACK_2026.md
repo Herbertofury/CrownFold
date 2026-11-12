@@ -1,69 +1,54 @@
-> **Status, 2026-11-03:** The browser prototype is a dependency-free JavaScript/WebGL2 game, with software rendering fallback. Unreal Engine 5.8 is an evaluated **future native production candidate**, not the current implementation. Reverify engine/tool versions, third-party terms, compatibility and benchmarks before adopting them.
+# Rust-first CrownFold architecture
 
-# Modern production architecture — verified November 3, 2026
+Updated 2026-11-12. This supersedes the previous Unreal production proposal. The project direction is Rust; it does not require abandoning the existing playable game or pretending the whole engine has already been ported.
 
-**Recommendation for eventual high-end native development:** **Unreal Engine 5.8.4** (Oct 20, 2026 stability hotfix) for the full open-world TPS/RTS/survival game. The playable prototype supplied in this repository is deliberately **not** built in Unreal; it is standalone JavaScript + WebGL2 with a software fallback. The browser approach supports immediate offline play and fast gameplay iteration, while the native stack below is a *proposed migration target*, not an implemented engine port.
+## Running today
 
-Official sources:
-- Epic: [UE 5.8 is now available](https://www.unrealengine.com/news/unreal-engine-5-8-is-now-available) (Jun 23, 2026).
-- Epic: [UE 5.8 release announcement](https://forums.unrealengine.com/t/unreal-engine-5-8-released/2729274) (Jun 17, 2026).
-- Epic: [UE 5.8.4 hotfix](https://forums.unrealengine.com/t/5-8-4-hotfix-released/2842775) (Oct 20, 2026).
-- Epic: [Latest feature release documentation](https://dev.epicgames.com/documentation/unreal-engine/whats-new?lang=en-US).
+- `rust/crownfold-tactics` is an engine-independent, dependency-free Rust library. It owns bounded formation A*, cover occlusion, blocked-position and segment-circle queries.
+- `src/battlefield.mjs` calls that library compiled to WebAssembly during actual War Rift simulation. The browser renderer, UI, broader combat, RPG, economy and save layer remain JavaScript.
+- The same crate builds and tests natively. This is a reusable native gameplay foundation, **not a native game executable**.
+- The compiled 39,865-byte Wasm module is embedded in the offline HTML through a generated JS data module. Players need neither Rust nor an external download. There are no Wasm host imports or third-party Rust crates.
+- If Wasm cannot initialize, the title-screen footer explicitly reports JavaScript compatibility mode. It uses the maintained reference implementation and does not discard saves.
+- Cover/grid clearance now agrees at 2.3 meters. Grid edges and the connection from the actual unit position are checked before emitting a route, fixing corner-grazing and first-waypoint cover crossings.
 
-## Recommended systems, with readiness gates
+## Build and verification
 
-| Subsystem | Suggested implementation | Reason / readiness in UE 5.8 |
-| --- | --- | --- |
-| Core engine | UE 5.8.4 C++ plus Blueprint/data assets | Native tooling, high-quality animation, ecosystem and advanced renderer. Lock target version before production. |
-| Open-world streaming | World Partition / Data Layers / HLOD / One File Per Actor | Content streaming and teams authoring a large persistent world. |
-| Procedural wilderness | PCG framework + validated procedural recipes; cooked/streamed HLODs | Controlled reproducibility, editability, variation and performance. |
-| Experimental world tech | Mesh Terrain, procedural vegetation editor, Fast Geometry Streaming | Treat as R&D toggles and fallback to proven landscapes/mesh pipelines: Epic describes some of these as experimental in 5.8. |
-| Geometry/lighting | Nanite, Lumen, Virtual Shadow Maps, MegaLights | Strong cinematic baseline. **MegaLights is production-ready in UE 5.8**; profile on actual target GPU. Lumen Lite is beta and requires visual-validation gate. |
-| TPS locomotion/combat | C++ character architecture, Enhanced Input, Motion Matching/animation blueprint, IK retargeting | Responsive locomotion, weapon traces, impacts and animation systems; put controllable latency ahead of fidelity. |
-| Combat abilities | Gameplay Ability System (GAS) + Gameplay Tags + cue prediction | Fold/Echo/artillery/medical systems with replicable rules, cooldowns, feedback and constraints. |
-| Squad and large RTS layer | MassEntity for crowds if profiled beneficial, StateTree/AI Perception, Navigation System, hierarchical command goals | Keep tactical agents detailed near the player, simulate distant threats cheaply. Measure vs conventional Actor AI before opting into Mass. |
-| Physics/destruction | Chaos, selective fracture / geometry collections | Physics interactions with strict CPU/network budgets; Fold must update navigation/recast and ownership coherently. |
-| Audio | MetaSounds, spatialization, authored music/sfx, accessibility subtitles | Player and battlefield readability. Procedural browser beeps are temporary only. |
-| Networking | Iris replication (production-ready in 5.8), dedicated server, server-authoritative commands | A future co-op architecture; **none of it is present in the playable release**. |
-| Tooling | Unreal Insights + automated profiling; Perforce for heavy binary content, Git for code; build pipeline | Frame-time, streaming and content-build monitoring, source control scale. |
-| Content production | Blender 5.x LTS or Maya, Houdini/PCG, Substance or equivalent, internally authored photogrammetry when licensed | Art quality comes from asset/animation/level teams, not an engine-version label. |
-| Testing | native automated functional tests, playtest telemetry with consent, sim replay determinism, multiplayer soak/perf | Prevent tactical desyncs and content regressions. |
+Node.js 22+ runs existing developer workflows. Editing the Rust kernel also needs the official Rust toolchain pinned in `rust-toolchain.toml` (1.99.1, wasm32-unknown-unknown, rustfmt and Clippy).
 
-## Code boundaries to preserve in the port
-
-`src/sim.mjs` is the **behavioral reference** for world seeds, inventory, shooting, squads, Fold/Echo costs, objective stages, save data and progression. Port the semantics into an engine-independent native gameplay library with rigorous determinism tests. Do **not** attempt a naive line-by-line reimplementation of the JavaScript WebGL renderer in Unreal.
-
-Use separate Unreal modules/services:
-
-```text
-RiftfrontCore       authoritative world simulation, state, world seeds, deterministic commands
-RiftfrontSurvival   needs, crafting, inventory, persistence, camps and outposts
-RiftfrontCombat     TPS movement, weapons, cues, damage, cover, ability system
-RiftfrontTactics    squads, formation behavior, command layers, economic simulation
-RiftfrontWorld      PCG biomes, World Partition, Data Layers, navigation and streaming
-RiftfrontRifts      mission director, objectives, instanced dungeons and extraction
-RiftfrontUI         third-person HUD, RTS tactical view, accessibility
-RiftfrontNet        dedicated server and Iris validation (future)
+```sh
+npm run test:rust
+cargo fmt --manifest-path rust/Cargo.toml --check
+cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
+npm run build:rust
+npm run check:rust
+npm run build
+npm run check
+npm test
+npm run benchmark
+npm start
 ```
 
-**Fold implementation:** Keep the battlefield cell's logical ownership coordinates independent of the visual terrain stream. Represent moving battlefield sub-regions as addressable transforms with clear collision/nav updates. Only rotate topological terrain when that system passes perf and replication test gates; the browser prototype merely rotates battle entities.
+Open http://127.0.0.1:3040/ for source-mode play, or open `dist/CROWNFOLD-RIFTFRONT.html` directly. `build:rust` regenerates the checked-in Wasm data; `check:rust` rebuilds and compares its exact bytes. `build` only bundles committed runtime code, so ordinary JS development does not require a Rust installation. Commit both rebuilt artifacts after Rust edits.
 
-**Echo implementation:** Record compact, server-authoritative snapshots of the operative and choose a safe valid rewind state; explicitly disallow rewind exploits (inventory duplication, boss rollback, free traversal into unloaded sectors). In single-player current Echo only restores player position/health/shield.
+The synchronous Wasm bridge has a versioned API, validates finite cover values, caps cover input at 1,024, and caps path search at 10,000 iterations. The normal game uses seven cover objects and a 2,100-iteration budget. Oversized cover lists use the JS reference rather than silently truncating collisions. It owns Rust buffers and uses no unsafe raw-pointer interface. Input is synchronized per query so destruction and Fold movement cannot leave stale cover caches.
 
-**Persistence:** Versioned schema with deterministic world seeds + sparse deltas (harvested, built, liberated, faction activity), migration tests, idempotent rewards, atomic checkpoint save. Do not serialize the whole physical world every save.
+Native tests, seeded geometry comparisons, route-clearance regressions, a live 50-second simulated war, delivered-module tests and an offline import-map check are automated. The CI workflow also runs browser checks for source-mode/offline startup, tactical command mode, quick saves and explicit fallback. Browser checks are distinct from hardware GPU testing and full human sessions.
 
-## Performance and production gates (targets, not achieved results)
+## Current performance evidence
 
-- **Performance target:** target 60 fps on defined mainstream PC tier (16.7 ms total), with defined 30-fps fallbacks for minimum GPU. Budget CPU and GPU separately; benchmark scenes with several thousand environment objects and hundreds of strategic agents, not just empty wilderness.
-- **Streaming:** 99th-percentile stalls, traversal speed and memory budgets; prove no noticeable blocking on foot, vehicles and warp transition. Profile with real assets and realistic NPC/FX density.
-- **Combat:** sustained AI/director performance under boss/industrial combat, responsive input on lower frames, controlled hit latency and deterministic Fold/Echo replication.
-- **Open-world:** the weather, harvesting, camps, enemy attacks and reward progression must remain meaningful after 10+ hours rather than simply infinite procedural filler.
-- **Operations:** a *playtested* 25–45-minute experience with objective variants, pacing director and fail-forward extraction. Current prototype merely provides a 36-minute limit.
-- **Qualify experimental features individually:** new 2026 technology should be adopted when it improves real scenes in profiling, not because it is newest. Lock version and benchmark before production.
+A local CPU-only run of the existing five-map, 80-aggregate-battalion, 450-tick harness reported Rust-backed average ticks of 0.475–0.698 ms and p95 ticks of 0.856–1.635 ms. It recorded 3,064 Rust route calls and 1,929 Rust occlusion calls with zero fallback queries. These are single-run observations on the build host, not stable performance guarantees, graphics FPS or 1,000 individually simulated soldiers.
 
-## Current prototype tech (what can actually run)
+The JS compatibility run was slightly faster in this small scene (average 0.430–0.666 ms). No Rust speedup is claimed. This milestone establishes a tested gameplay boundary and native reuse. Profile larger, representative scenes before moving more work across the ABI. Each backend is repeatable for identical inputs; bit-identical full-game replays between JS and Rust are not yet a contract.
 
-- Standard ES modules, original procedural simulation + low-poly GPU renderer using **WebGL2 instancing**, shader-based lighting/fog, generated terrain, optional 2D Canvas fallback.
-- Node.js 22+ only needed to develop/serve/build/test, **not to play** the offline HTML. No npm runtime dependencies, no external CDN assets.
-- Browser-local single-player save data; no credentials or telemetry; test coverage in `docs/QA.md`.
-- Limitations: no UE5 compiled project, no modern skeletal animation, incomplete physics/collision system, no co-op or multiplayer networking, no serious streaming benchmark and no AAA production-ready art/audio content.
+## Next coherent playable milestone
+
+1. **One complete authored War Rift:** make a compelling 20–30-minute Crownless March siege with reliable extraction, intentional pacing and persistent rewards. Preserve the five-era vision without spreading content production too thin.
+2. **Rust gameplay authority:** migrate fixed-tick movement, projectile impacts and objective state into a native/Wasm simulation crate with command logs, deterministic replay tests, stable IDs and versioned checkpoints. Keep rendering and presentation separate.
+3. **Native renderer evaluation:** compare a Rust-native engine/ECS renderer (for example Bevy/wgpu) against a small, representative battlefield. Select only after measuring controller feel, animation tooling, scene streaming, frame times and packaging. Neither a native renderer nor any particular framework is integrated yet.
+4. **Production-quality combat and art:** camera collision, animation transitions, readable squads, authored environmental storytelling, spatial audio, accessibility and input rebinding. Assets and composition, not the language label, determine visual quality.
+5. **Measured scale:** profile spatial queries, allocation, path reuse and distant simulation; then test hundreds of visible actors on specified target hardware. Keep aggregate strategic simulation where detailed actors add no player value.
+6. **Persistence and co-op:** atomic checkpoints, migration/corruption recovery, authoritative command validation, then reconnect and network-loss testing. Current operations still do not resume mid-battle.
+
+## Honest acceptance gates
+
+The product remains a browser pre-alpha. A full native Rust executable, production assets, mature physics, streaming cities, skeletal animation, co-op, controller/accessibility coverage, target-GPU frame budgets and complete unassisted campaign playtests remain outstanding. The original board mode and current saves stay available during incremental migration. The Rust direction replaces the old Unreal recommendation; it does not convert those old architectural aspirations into delivered features.

@@ -1,3 +1,15 @@
+# Rust tactics qualification — 2026-11-12
+
+- 9 native Rust tests; rustfmt; Clippy with warnings denied.
+- 194 Node tests, including 2,000 seeded geometry comparisons, route reachability/clearance across five campaigns, a live simulated war invoking Rust, cover mutation/destruction, oversized input fallback, invalid/unsupported Wasm, local-server route/CSP checks and offline-module delivery.
+- Independent review caught a first-waypoint cover crossing not covered by the original tests. Both backends now connect the true start to visible grid nodes and validate each emitted segment; the exact standard-map case is retained as a regression.
+- Wasm reproducibility check and offline build pass. No third-party Rust dependencies or Wasm host imports.
+- CPU benchmark scope/results and limitations: [Rust architecture](TECH_STACK_2026.md). No speedup, rendering-FPS or native-executable claim.
+- Local browser execution is blocked by this host's OS socket restriction. Browser tests are added to CI but must be checked on the exact published commit before reporting browser verification. Hardware GPU and full human campaign playtests remain unverified.
+- Combat/save safety from PR #1 is included, preserving separate open-world/quick-save slots and replacement confirmation. Operations still do not resume mid-battle.
+
+---
+
 # Latest QA — v0.8 Warforged (2026-11-03)
 
 - **176/176** Node simulation tests passing, including 11 new tests for cover, routing, dodging and precision hits.

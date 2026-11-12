@@ -1,3 +1,4 @@
+import {tacticalRuntime} from './battlefield.mjs';
 import {createGame,restore,serialize,stepGame,WEAPONS,STRUCTURES,CONTRACTS,clamp,fmtTime,dist,terrainHeight,biomeAt,worldGates,nearestInteraction,interact,enterOperation,finishOperation,addBuilding,recruit,issueOrder,fold,echo,grenade,orbital,resupply,reload,setWeapon,useConsumable,castAbility,dodge,sleepAtCamp} from './sim.mjs';
 import {NPCS,NPC_BY_ID,LANDMARKS,DUNGEON_BY_ID,FACTIONS,PERKS,ABILITIES,QUESTS,QUEST_BY_ID,RECIPES,GOODS,RARITIES,perkRank,rpgStat,buyPerk,equipGear,salvageGear,craft,fastTravel,activeQuest,dialogueOptions,dialogueChoice,buyGood,startBounty,claimBounty,generateBounty,LOCKBOXES,attemptLock} from './rpg.mjs';
 import {WorldRenderer} from './render.mjs';
@@ -6,6 +7,9 @@ import {COMMANDER_HERITAGES,LOST_TECH,MAX_WEAVE_SLOTS,WAR_POWERS,WEAVE_SYNERGIES
 import {BATTALIONS,WAR_BUILDINGS,WAR_CAMPAIGNS,WAR_STANCES,WAR_EXPEDITIONS,WAR_SUPPORT,trainBattalion,constructWarBuilding,warSummary,selectWarBattalion,selectWarBattalions,setWarControlGroup,recallWarControlGroup,setWarStance,warCastPower,callWarSupport,signalWarExtraction,canSignalWarExtraction,warObjective} from './war.mjs';
 import {selectEpoch} from './sim.mjs';
 const $=id=>document.getElementById(id),canvas=$('world');
+const runtime=tacticalRuntime();
+$('tactics-runtime').textContent=runtime.backend==='rust-wasm'?'RUST TACTICS · WASM':'JS TACTICS · COMPATIBILITY MODE';
+$('tactics-runtime').title=runtime.reason||'Cover collision and formation routes run in Rust compiled to WebAssembly.';
 const SAVE_KEY='crownfold-riftfront-save-v1',QUICK_SAVE_KEY='crownfold-riftfront-quick-save-v1';
 let currentSaveKey=SAVE_KEY;
 const safeSave=()=>{try{localStorage.setItem(currentSaveKey,serialize(s));return true;}catch{return false;}};
@@ -21,8 +25,14 @@ function tone(freq=220,seconds=.1,kind='triangle',volume=.12,end=freq*.6){if(!au
 function sound(name){if(name==='shoot')tone(s.player.weapon==='rail'?150:350,.09,'sawtooth',.04,45);if(name==='hit')tone(790,.10,'square',.025,360);if(name==='fold'){tone(145,.65,'sine',.15,800);tone(420,.37,'triangle',.07,120);}if(name==='echo')tone(1000,.55,'sine',.1,130);if(name==='notification')tone(430,.22,'sine',.045,620);if(name==='explosion')tone(80,.48,'sawtooth',.15,28);if(name==='build')tone(180,.2,'triangle',.08,390);}
 function updateContinue(){$('continue-game').disabled=!safeLoad(SAVE_KEY);$('continue-quick').disabled=!safeLoad(QUICK_SAVE_KEY);}
 updateContinue();
-function pointer(){if(!commander&&!paused&&!buildMenu&&!help&&!rpgMenu&&!dialogue&&!lockMenu&&active&&document.pointerLockElement!==canvas){try{canvas.requestPointerLock();}catch{}}}
+const canCapturePointer=()=>!commander&&!paused&&!buildMenu&&!help&&!rpgMenu&&!dialogue&&!lockMenu&&active;
+function pointer(){if(canCapturePointer()&&document.pointerLockElement!==canvas){try{
+ // Pointer-lock requests resolve asynchronously. Rejections after Escape are normal.
+ const request=canvas.requestPointerLock();request?.catch(()=>{});
+}catch{}}}
 function exitPointer(){if(document.pointerLockElement===canvas)document.exitPointerLock();}
+// A pending request may finish after a menu opens; do not let it capture menu clicks.
+document.addEventListener('pointerlockchange',()=>{if(!canCapturePointer())exitPointer();});
 function setVisibility(id,show){$(id).classList.toggle('hidden',!show);}
 function start(kind='new'){
  const quick=['drop','war','continue-quick'].includes(kind),key=quick?QUICK_SAVE_KEY:SAVE_KEY;
@@ -324,5 +334,5 @@ function frame(now){const dt=Math.min(.06,(now-last)/1000||.016);last=now;
 }
 window.addEventListener('beforeunload',()=>{if(active&&s.zone==='frontier')safeSave();});
 // Test/dev inspector: read-only game objects and deterministic module methods, no account data.
-Object.defineProperty(window,'__riftfront',{get:()=>({state:s,renderer,active,paused,commander,rpgMenu,dialogue,sim:{stepGame,enterOperation,finishOperation,issueOrder,fold,echo,addBuilding,castAbility,dodge,serialize,restore},ui:{toggleRpg,openDialogue,renderRpg}})});
+Object.defineProperty(window,'__riftfront',{get:()=>({tactics:tacticalRuntime(),state:s,renderer,active,paused,commander,rpgMenu,dialogue,sim:{stepGame,enterOperation,finishOperation,issueOrder,fold,echo,addBuilding,castAbility,dodge,serialize,restore},ui:{toggleRpg,openDialogue,renderRpg}})});
 requestAnimationFrame(frame);
