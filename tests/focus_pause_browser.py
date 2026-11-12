@@ -16,6 +16,13 @@ with sync_playwright() as pw:
   checks['title_untouched']=page.evaluate('!window.__riftfront.active&&!window.__riftfront.paused')
   page.locator('#new-game').click()
   page.wait_for_function('window.__riftfront.active')
+  # Exercise the actual handlers when release lands on the HUD, not the canvas.
+  page.evaluate("document.getElementById('world').requestPointerLock=()=>Promise.resolve();document.getElementById('world').dispatchEvent(new PointerEvent('pointerdown',{button:2,bubbles:true}))")
+  checks['right_press_aims']=page.evaluate("document.body.classList.contains('aiming')")
+  page.evaluate("document.body.dispatchEvent(new PointerEvent('pointerup',{button:2,bubbles:true}))")
+  checks['hud_release_clears_aim']=page.evaluate("!document.body.classList.contains('aiming')")
+  page.evaluate("document.getElementById('world').dispatchEvent(new PointerEvent('pointerdown',{button:2,bubbles:true}));document.body.dispatchEvent(new PointerEvent('pointercancel',{button:-1,bubbles:true}))")
+  checks['cancel_clears_aim']=page.evaluate("!document.body.classList.contains('aiming')")
   page.keyboard.down('w')
   page.evaluate("window.dispatchEvent(new Event('blur'))")
   page.wait_for_function('window.__riftfront.paused')
