@@ -29,7 +29,7 @@ The offline build embeds the Rust module and requires no installation. Its foote
 | TAB | Enter live RTS command without pausing the battlefield; the player remains in place while the tactical camera pans |
 | RTS camera: WASD / mouse wheel / drag | Pan and zoom the map independently; box-select allied battalions and right-click terrain to move them |
 | Shift-click / Ctrl+1–5 / Alt+1–5 | Add formations, save five control groups, recall groups |
-| ` (backtick) | Toggle compact RTS map view and expanded army-production console |
+| ` (backtick) | Open the paused six-weapon arsenal in soldier view; toggle compact console in RTS view |
 | War command panel | Train 13 cross-era battalions, select formation stances, summon Timefall reserves or strike with Epoch Lance, and build field structures |
 | T then Q | Pick destination era, then Chronofold a 24-meter tile (rotate contents and imbue its era) |
 | Z / F / G / V | Echo rewind / orbital strike / grenade / resupply |
@@ -53,6 +53,12 @@ Open **Settings** on the title screen or **Player Settings** from the pause menu
 Changes apply immediately and persist on this browser, separately from both campaign saves. Resetting settings never resets progress. If browser storage is blocked, settings still work for the session and the panel explains that they could not be saved. Sound starts only after a player gesture. Native keyboard controls work on the title, pause menu and settings dialog; Escape or Done returns to the opening menu without resuming combat.
 
 This is an initial comfort pass, not complete accessibility support, key rebinding or controller support. Browser audio gain is testable, but listening on actual speakers/headphones remains a human check.
+
+## Field arsenal
+
+Press **` (backtick)** in soldier view or click **Arsenal** beside the weapon name. All six weapons show their role, direct damage, range, reload time and available ammunition. Choose with the mouse, **1–6** or arrow keys, then **Enter** or **Equip** to return. Escape or Cancel returns without changing weapons. Opening the arsenal pauses combat and the mission clock; it never replaces either save. The RTS backtick shortcut remains the compact console.
+
+The weapon HUD now shows a reload progress bar and remaining seconds, low ammunition and empty-magazine prompts. Equipping another weapon cancels the current reload as before; keeping the same weapon or cancelling the selector preserves it. Existing 1–3 and mouse-wheel shortcuts remain available. Damage labels show base direct damage, not guaranteed damage after armor, pellets, weak points or explosions.
 
 ## The Great Entanglement
 

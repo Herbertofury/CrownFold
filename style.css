@@ -106,3 +106,20 @@ body.command-compact #commander-panel .commander-compact{margin:0}
 .settings-dialog :focus-visible,#title-settings:focus-visible,#pause-settings:focus-visible{outline:3px solid var(--amber);outline-offset:4px}
 #title-settings{margin-left:12px;white-space:nowrap}.reduced-hud-effects #damage-flash,.reduced-hud-effects .scanlines{display:none}.reduced-hud-effects *,.reduced-hud-effects *::before,.reduced-hud-effects *::after{animation:none!important;transition:none!important}
 @media(max-width:600px),(max-height:650px){.settings-dialog{padding:20px}.settings-dialog h2{font-size:27px}.settings-actions{flex-wrap:wrap}.settings-actions .button{flex-basis:180px}}
+
+/* Inspect all six weapons without cycling blindly or spending combat time. */
+.arsenal-dialog{color:var(--ink);background:linear-gradient(135deg,#10282fee,#0c1926fa);border:1px solid #83b7a5;border-radius:8px;box-shadow:0 24px 100px #000c;width:min(940px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:28px}
+.arsenal-dialog::backdrop{background:#020e17b8;backdrop-filter:blur(4px)}
+.arsenal-dialog h2{font-size:34px;letter-spacing:-1px;margin:10px 0}.arsenal-dialog h2 em{font-style:normal;color:var(--mint)}
+#arsenal-description{font-size:13px;color:#b8d2cf;line-height:1.6;max-width:680px;margin:0 0 20px}
+.arsenal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.arsenal-card{display:flex;flex-direction:column;gap:9px;min-width:0;text-align:left;color:#f1e9d8;background:#142932;border:1px solid #4d6974;border-radius:4px;padding:17px;cursor:pointer;font-family:inherit}
+.arsenal-card:hover{background:#203c43}.arsenal-card[aria-pressed="true"]{border-color:#a6f7d9;background:linear-gradient(150deg,#28534c,#192e3b);box-shadow:inset 0 3px 0 #a6f7d9}
+.arsenal-role{font-size:10px;font-weight:700;letter-spacing:1px;color:#9bc8ca}.arsenal-card strong{font-size:17px;line-height:1.3}.arsenal-card p{font-size:12px;line-height:1.5;color:#cadbd8;margin:0;min-height:54px}
+.arsenal-stats{display:flex;flex-wrap:wrap;gap:6px;font-size:9px;color:#e2c790;margin-top:auto}.arsenal-stats span{border:1px solid #91b2aa3b;padding:4px}
+.arsenal-ammo{font-size:15px;font-weight:750;font-variant-numeric:tabular-nums;margin-top:3px}.arsenal-state{color:#abf3d7;font-size:10px;letter-spacing:.6px;font-weight:700}.arsenal-state.empty{color:#ffc4b9}
+#arsenal-selection{min-height:36px;font-size:12px;color:#f5d69b;line-height:1.6;margin:18px 0 10px}.arsenal-actions{display:flex;gap:12px}.arsenal-actions .button{flex:1;min-width:0;justify-content:center}
+.arsenal-dialog :focus-visible,#arsenal-button:focus-visible{outline:3px solid var(--amber);outline-offset:4px}
+#arsenal-button{white-space:nowrap;padding:8px 7px;margin-left:7px;font-size:8px;letter-spacing:.5px}.weapon-heading div{min-width:0}.weapon-heading b{overflow-wrap:anywhere}.reload-meter{display:block;width:100%;height:5px;border:0;margin:8px 0 0;background:#243b40;accent-color:#a6f7d9}.reload-meter::-webkit-progress-bar{background:#243b40}.reload-meter::-webkit-progress-value{background:#a6f7d9}.ammo .ammo-low{color:#ffc58f}
+@media(max-width:750px){.arsenal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.arsenal-dialog{padding:20px}.arsenal-dialog h2{font-size:27px}}
+@media(max-width:480px){.arsenal-grid{grid-template-columns:1fr}.arsenal-actions{flex-direction:column}.arsenal-card p{min-height:0}}
