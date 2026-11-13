@@ -15,7 +15,8 @@ with sync_playwright() as pw:
    context=browser.new_context(viewport={'width':1440,'height':1000});page=context.new_page();page.set_default_timeout(10000)
    page.on('pageerror',lambda error:errors.append(str(error)))
    page.goto(url);page.wait_for_function('window.__riftfront?.renderer')
-   page.locator('#new-game').click();page.wait_for_function('window.__riftfront.active');page.evaluate('document.exitPointerLock()');page.locator('#pause-button').click()
+   page.locator('#new-game').click();page.wait_for_function('window.__riftfront.active');page.evaluate('document.exitPointerLock()');page.locator('#pause-button').click();page.locator('#back-menu').click()
+   # Leave the active game first so its beforeunload save cannot replace this fixture.
    # Deliberate corrupted identifiers, retaining known valid campaign inventory.
    page.evaluate('''key=>{const api=window.__riftfront,save=JSON.parse(api.sim.serialize(api.state));
     save.inventory.scrap=731;save.player.weapon='constructor';save.rpg.quests.constructor={status:'active',progress:1};
