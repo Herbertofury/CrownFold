@@ -19,16 +19,19 @@ with sync_playwright() as pw:
    # Leave the active game first so its beforeunload save cannot replace this fixture.
    # Deliberate corrupted identifiers, retaining known valid campaign inventory.
    page.evaluate('''key=>{const api=window.__riftfront,save=JSON.parse(api.sim.serialize(api.state));
+    save.rpg.gear=[{id:123,slot:'armor',rarity:1,name:'Recovered armor',stats:{health:'broken',armor:{},shield:-500,damage:'20'}}];save.rpg.equipped.armor=123;
     save.inventory.scrap=731;save.player.weapon='constructor';save.rpg.quests.constructor={status:'active',progress:1};
     save.rpg.tracked='toString';save.rpg.allegiance='__proto__';save.rpg.worldEnding='valueOf';
     save.buildings.push({kind:'constructor',x:0,z:0,hp:10});localStorage.setItem(key,JSON.stringify(save));}''',KEY)
    page.reload();page.wait_for_function('window.__riftfront?.renderer');expect(page.locator('#continue-game')).to_be_enabled()
    page.locator('#continue-game').click();page.wait_for_function('window.__riftfront.active');page.evaluate('document.exitPointerLock()');page.locator('#pause-button').click()
-   state=page.evaluate('''()=>{const s=window.__riftfront.state;return {weapon:s.player.weapon,scrap:s.inventory.scrap,quests:Object.keys(s.rpg.quests),badBuilding:s.buildings.some(b=>b.kind==='constructor'),tracked:s.rpg.tracked,hp:s.player.hp}}''')
+   state=page.evaluate('''()=>{const s=window.__riftfront.state;return {weapon:s.player.weapon,scrap:s.inventory.scrap,quests:Object.keys(s.rpg.quests),badBuilding:s.buildings.some(b=>b.kind==='constructor'),tracked:s.rpg.tracked,hp:s.player.hp,maxHp:s.player.maxHp,maxShield:s.player.maxShield,gear:s.rpg.gear,equipped:s.rpg.equipped}}''')
    assert state['weapon']=='rifle' and state['scrap']==731 and state['quests']==[] and not state['badBuilding'] and state['tracked'] is None and state['hp']>0,state
+   assert state['maxHp']==140 and state['maxShield']==40 and state['gear'][0]['stats']=={} and state['equipped']['armor']==123,state
    checks[mode+'_continued_recovered_save']=True
    page.locator('#save-button').click();saved=page.evaluate('key=>JSON.parse(localStorage.getItem(key))',KEY)
    assert saved['player']['weapon']=='rifle' and saved['inventory']['scrap']==731
+   assert saved['rpg']['gear'][0]['stats']=={} and saved['rpg']['equipped']['armor']==123
    checks[mode+'_saved_recovered_state']=True;context.close()
   assert not errors,errors
  finally:
