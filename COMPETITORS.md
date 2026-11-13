@@ -42,7 +42,7 @@ During each daily review, check linked official release notes/issues and update 
 
 ### Shared-work proposals
 
-- Engineering Atlas can retain the rendering experiment protocol and raw comparison evidence. Do not recommend a framework in another project merely because this prototype likes it.
+- [Athena R&D](https://github.com/Herbertofury/Athena) is the destination for the rendering experiment protocol and raw comparison evidence; Engineering-Atlas is retained only as migration/provenance source. Do not recommend a framework in another project merely because this prototype likes it.
 - Hover's future asset-preview work could share original camera-control/accessibility test scenarios and explicitly licensed format fixtures, not game-specific simulation or private assets.
 - Keep save envelopes/version migrations project-owned. A shared interruption/rollback test format is more appropriate than a global save format forced onto unrelated applications.
 
@@ -54,3 +54,11 @@ During each daily review, check linked official release notes/issues and update 
 These are **candidate foundations and experiments**, not selected dependencies or measured improvements. Before reuse: pin the exact version/commit and loader; inspect its source and dependency tree; record code, asset, trademark and redistribution terms separately; keep required notices; verify permission where terms are restrictive or unclear. Public visibility is not a license. A current default-branch license is evidence for that snapshot, not every historical release. Prefer an upstream dependency/API or a small original adapter over a fork when it preserves compatibility. Do not copy proprietary game assets or publish private fixtures.
 
 For every admitted experiment retain baseline and candidate artifacts, representative native workloads, correctness/feature parity, cold/warm latency, p95 frame/tick time, memory, interrupted-save/recovery evidence and rollback. Promote only after the actual target improves without losing requirements. Cross-project sharing below is an interface proposal, not permission to change another project's implementation or declare integration complete.
+
+## Focused upstream refresh: 2026-11-13
+
+Checked official [wgpu releases](https://github.com/gfx-rs/wgpu/releases/tag/v30.0.2) and [Three.js r187](https://github.com/mrdoob/three.js/releases/tag/r187). This is a source review, not a target benchmark or an adoption recommendation.
+
+- **wgpu v30.0.2**, released November 12, fixes mapped-buffer use-after-free during device loss/destruction and a texture-ID leak when surface acquisition returns no texture. The prior review recorded only a date, so whether this release postdates that review is unknown. It was not recorded in this document before this pass. The tagged [MIT license](https://github.com/gfx-rs/wgpu/blob/v30.0.2/LICENSE.MIT) was checked (blob `8d02e4dbd5f15740abd348fa5d52587cac00c6ea`); dependency and asset terms still require separate review.
+- **Three.js r187**, October 30, remains the latest release shown by the official page. Relevant existing fixes include BatchedMesh sorting, geometry resize draw ranges and old matrix-data leakage. These are newly recorded leads, not changes claimed to have shipped since yesterday.
+- **Next bounded experiment belongs in Athena R&D**, not a CrownFold dependency replacement: on the same battlefield, exercise repeated resource resize/recreation, device loss and missing-surface recovery; retain memory growth, correct draw ranges, fallback behavior and p95 frame time against CrownFold's current implementation. No implementation, dependency, gameplay or performance acceptance is claimed here.
