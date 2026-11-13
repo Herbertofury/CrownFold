@@ -37,6 +37,7 @@ jobs:
           for i in $(seq 1 30); do curl --fail http://127.0.0.1:3040/ >/dev/null 2>&1 && break; sleep 1; done
           python tests/rust_runtime_browser.py
           python tests/war_checkpoints_browser.py
+          python tests/save_catalog_browser.py
       - name: Play six-weapon arsenal in offline and served builds
         run: |
           python tests/arsenal_browser.py
