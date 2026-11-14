@@ -100,11 +100,12 @@ export const perkRank=(s,id)=>limit(s.rpg?.perks?.[id]||0,0,3);
 export const rpgStat=(s,stat)=>{const rank=id=>perkRank(s,id);const gear=Object.values(s.rpg?.equipped||{}).filter(Boolean).map(id=>s.rpg.gear.find(g=>g.id===id)).filter(Boolean);
  const item=(name)=>gear.reduce((total,g)=>total+(g.stats[name]||0),0);
  const values={damage:1+rank('sharpshooter')*.09+item('damage')*.01,blast:1+rank('demolition')*.16,execute:1+rank('executioner')*.14,armor:limit(rank('armored')*.06+item('armor')*.01,0,.75),health:140+rank('armored')*20+item('health'),shield:40+rank('aegis')*15+item('shield'),speed:1+rank('pathfinder')*.08,staminaCost:1-rank('pathfinder')*.12,healing:1+rank('fieldmedic')*.15,harvest:1+rank('scavenger')*.25,discount:1-rank('craftsman')*.1,prices:(1-rank('merchant')*.12)*((s.rpg?.factions?.freefolk||0)>=20?.87:(s.rpg?.factions?.freefolk||0)<-20?1.23:1),squad:1+rank('tactician')*.12,squadHealth:1+rank('fieldleader')*.15,buildingHp:1+rank('architect')*.2,cooldowns:1-rank('chronomancer')*.12,fluxCosts:1-rank('fluxweaver')*.12,arcane:1+rank('stormcaller')*.18,medkit:85+rank('fieldmedic')*20};return values[stat]??0;};
-export function buyPerk(s,id){const perk=PERKS[id];if(!perk||!s.rpg||s.rpg.perkPoints<=0||perkRank(s,id)>=perk.max)return false;
+const ownsCatalogId=(catalog,id)=>typeof id==='string'&&Object.hasOwn(catalog,id);
+export function buyPerk(s,id){const perk=ownsCatalogId(PERKS,id)?PERKS[id]:null;if(!perk||!s.rpg||s.rpg.perkPoints<=0||perkRank(s,id)>=perk.max)return false;
  s.rpg.perkPoints--;s.rpg.perks[id]=(s.rpg.perks[id]||0)+1;const p=s.player;const oldMaxHp=p.maxHp,oldMaxShield=p.maxShield;p.maxHp=rpgStat(s,'health');p.maxShield=rpgStat(s,'shield');p.hp+=p.maxHp-oldMaxHp;p.shield+=p.maxShield-oldMaxShield;return true;}
 export function grantXP(s,amount){if(!Number.isFinite(amount)||amount<=0)return 0;const p=s.player;p.xp+=amount;let gained=0;while(p.xp>=p.level*110&&gained<30){p.xp-=p.level*110;p.level++;gained++;s.rpg.perkPoints++;p.maxHp=rpgStat(s,'health');p.maxShield=rpgStat(s,'shield');p.hp=Math.min(p.maxHp,p.hp+30);p.shield=Math.min(p.maxShield,p.shield+15);}if(gained)rpgMessage(s,`LEVEL ${p.level} / +${gained} PERK POINT${gained===1?'':'S'}`,'success');return gained;}
 function rpgMessage(s,text,type='info'){s.messages.push({id:++s.lastEvent,text,type,at:s.time});if(s.messages.length>12)s.messages.shift();}
-export function generateGear(s,slot='relic',tier=1,source=0){if(!GEAR_NAMES[slot])return null;const id=++s.nextId,r=random01(id+source,Math.floor(s.time)+tier,s.seed),rarity=limit(Math.floor(Math.pow(r,.55)*5),0,4),base=GEAR_NAMES[slot],name=base[Math.floor(random01(id,source+51,s.seed)*base.length)];const scale=RARITIES[rarity].mult*(1+Math.max(0,tier-1)*.23);
+export function generateGear(s,slot='relic',tier=1,source=0){if(!ownsCatalogId(GEAR_NAMES,slot))return null;const id=++s.nextId,r=random01(id+source,Math.floor(s.time)+tier,s.seed),rarity=limit(Math.floor(Math.pow(r,.55)*5),0,4),base=GEAR_NAMES[slot],name=base[Math.floor(random01(id,source+51,s.seed)*base.length)];const scale=RARITIES[rarity].mult*(1+Math.max(0,tier-1)*.23);
  const stats=slot==='armor'?{armor:Math.round(5*scale),health:Math.round(12*scale)}:slot==='relic'?{shield:Math.round(9*scale),damage:Math.round(3*scale)}:{damage:Math.round(8*scale)};
  const gear={id,slot,name,rarity,level:tier,stats};s.rpg.gear.push(gear);rpgMessage(s,`${RARITIES[rarity].name} FIND / ${name}`,'success');return gear;}
 export function equipGear(s,id){const g=s.rpg.gear.find(g=>g.id===id);if(!g)return false;const p=s.player,oldHp=p.maxHp,oldShield=p.maxShield;s.rpg.equipped[g.slot]=g.id;p.maxHp=rpgStat(s,'health');p.maxShield=rpgStat(s,'shield');p.hp=limit(p.hp+p.maxHp-oldHp,1,p.maxHp);p.shield=limit(p.shield+p.maxShield-oldShield,0,p.maxShield);rpgMessage(s,`EQUIPPED / ${g.name}`,'success');return true;}
@@ -127,7 +128,7 @@ export function claimBounty(s){const b=s.rpg.bounty;if(!b||b.status!=='ready'||s
 // save must not make a finite, three-vault quest impossible. Reconcile credit only;
 // rewards remain exclusively behind the existing ready -> done turn-in transition.
 function reconcileDungeonQuest(r,id){
- const q=QUEST_BY_ID[id],state=r.quests[id];
+ const q=ownsCatalogId(QUEST_BY_ID,id)?QUEST_BY_ID[id]:null,state=r.quests[id];
  if(!q||q.goal.type!=='dungeon'||!state||!['active','ready'].includes(state.status))return;
  const valid=id=>typeof id==='string'&&Object.hasOwn(DUNGEON_BY_ID,id);
  const remembered=[...new Set([...(state.unique||[]),...r.dungeonCleared].filter(valid))].filter(id=>q.goal.target==='any'||q.goal.target===id);
@@ -138,21 +139,21 @@ function reconcileDungeonQuest(r,id){
 // Finite discoveries remain usable after meeting Sable. Home is pre-known,
 // not an earned discovery. Never pay rewards while repairing world-history credit.
 function reconcileDiscoveryQuest(r,id){
- const q=QUEST_BY_ID[id],state=r.quests[id];
+ const q=ownsCatalogId(QUEST_BY_ID,id)?QUEST_BY_ID[id]:null,state=r.quests[id];
  if(q?.goal.type!=='discover'||!state||!['active','ready'].includes(state.status))return;
  const count=new Set(r.discovered.filter(place=>place!=='home'&&LANDMARKS.some(p=>p.id===place)&&(q.goal.target==='any'||q.goal.target===place))).size;
  state.progress=limit(Math.max(state.progress,count),0,q.goal.count);
  if(state.progress>=q.goal.count)state.status='ready';
 }
-export function takeQuest(s,id){const q=QUEST_BY_ID[id];if(!q||s.rpg.quests[id]||q.prerequisite&&s.rpg.quests[q.prerequisite]?.status!=='done')return false;s.rpg.quests[id]={status:'active',progress:0};reconcileDungeonQuest(s.rpg,id);reconcileDiscoveryQuest(s.rpg,id);s.rpg.tracked=id;rpgMessage(s,s.rpg.quests[id].status==='ready'?`QUEST READY / RETURN TO ${NPC_BY_ID[q.giver].name}`:`QUEST BEGUN / ${q.name}`,'command');return true;}
-export function turnInQuest(s,id){const q=QUEST_BY_ID[id],state=s.rpg.quests[id];if(!q||state?.status!=='ready')return false;state.status='done';giveReward(s,q.rewards);for(const id of s.rpg.companions)s.rpg.affinity[id]=limit((s.rpg.affinity[id]||0)+6,0,100);s.rpg.tracked=QUESTS.find(a=>s.rpg.quests[a.id]?.status==='active')?.id||null;rpgMessage(s,`QUEST COMPLETE / ${q.name}`,'success');return true;}
+export function takeQuest(s,id){const q=ownsCatalogId(QUEST_BY_ID,id)?QUEST_BY_ID[id]:null;if(!q||s.rpg.quests[id]||q.prerequisite&&s.rpg.quests[q.prerequisite]?.status!=='done')return false;s.rpg.quests[id]={status:'active',progress:0};reconcileDungeonQuest(s.rpg,id);reconcileDiscoveryQuest(s.rpg,id);s.rpg.tracked=id;rpgMessage(s,s.rpg.quests[id].status==='ready'?`QUEST READY / RETURN TO ${NPC_BY_ID[q.giver].name}`:`QUEST BEGUN / ${q.name}`,'command');return true;}
+export function turnInQuest(s,id){const q=ownsCatalogId(QUEST_BY_ID,id)?QUEST_BY_ID[id]:null,state=s.rpg.quests[id];if(!q||state?.status!=='ready')return false;state.status='done';giveReward(s,q.rewards);for(const id of s.rpg.companions)s.rpg.affinity[id]=limit((s.rpg.affinity[id]||0)+6,0,100);s.rpg.tracked=QUESTS.find(a=>s.rpg.quests[a.id]?.status==='active')?.id||null;rpgMessage(s,`QUEST COMPLETE / ${q.name}`,'success');return true;}
 export function rpgEvent(s,type,target='any',amount=1){if(!s.rpg)return;
  const b=s.rpg.bounty;if(b?.status==='active'&&b.goal.type===type&&(b.goal.target==='any'||b.goal.target===target)){
   let n=Math.max(0,amount);if(type==='dungeon'){if(b.unique.includes(target))n=0;else b.unique.push(target);}
   b.progress=limit(b.progress+n,0,b.goal.count);if(b.progress>=b.goal.count){b.status='ready';rpgMessage(s,`BOUNTY COMPLETE / RETURN TO THE NOTICE BOARD`,'success');}}
-for(const [id,state] of Object.entries(s.rpg.quests)){if(state.status!=='active')continue;const q=QUEST_BY_ID[id];if(!q||q.goal.type!==type||q.goal.target!=='any'&&q.goal.target!==target)continue;const increment=type==='dungeon'&&q.goal.target==='any'?(state.unique??=[]).includes(target)?0:(state.unique.push(target),1):Math.max(0,amount);state.progress=limit(state.progress+increment,0,q.goal.count);if(state.progress>=q.goal.count){state.status='ready';rpgMessage(s,`QUEST READY / RETURN TO ${NPC_BY_ID[q.giver]?.name||'THE GIVER'}`,'success');}}}
+for(const [id,state] of Object.entries(s.rpg.quests)){if(state.status!=='active')continue;const q=ownsCatalogId(QUEST_BY_ID,id)?QUEST_BY_ID[id]:null;if(!q||q.goal.type!==type||q.goal.target!=='any'&&q.goal.target!==target)continue;const increment=type==='dungeon'&&q.goal.target==='any'?(state.unique??=[]).includes(target)?0:(state.unique.push(target),1):Math.max(0,amount);state.progress=limit(state.progress+increment,0,q.goal.count);if(state.progress>=q.goal.count){state.status='ready';rpgMessage(s,`QUEST READY / RETURN TO ${NPC_BY_ID[q.giver]?.name||'THE GIVER'}`,'success');}}}
 // A recipe is atomic: never pay for output that cannot fit in the loadout.
-export function craftingStatus(s,id){const spec=RECIPES[id];if(!spec)return{ok:false,reason:'UNKNOWN RECIPE',cost:{}};
+export function craftingStatus(s,id){const spec=ownsCatalogId(RECIPES,id)?RECIPES[id]:null;if(!spec)return{ok:false,reason:'UNKNOWN RECIPE',cost:{}};
  const discount=rpgStat(s,'discount'),cost=Object.fromEntries(Object.entries(spec.cost).map(([k,n])=>[k,Math.ceil(n*discount)]));
  if(spec.result.grenades&&s.player.grenades+spec.result.grenades>12)return{ok:false,reason:'NEED ROOM FOR 3 GRENADES',cost};
  const missing=Object.entries(cost).filter(([k,n])=>(s.inventory[k]||0)<n).map(([k,n])=>`${n-(s.inventory[k]||0)} ${k.toUpperCase()}`);
@@ -206,7 +207,7 @@ export function dialogueChoice(s,npcId,choiceId){const npc=NPC_BY_ID[npcId];if(!
  if(choiceId.startsWith('turnin:')){const id=choiceId.slice(7);const ok=QUEST_BY_ID[id]?.giver===npcId&&turnInQuest(s,id);return{ok,text:ok?'The frontier will remember what you did. Take your reward.':'This mission is not ready to turn in.'};}
  if(choiceId==='leave')return{ok:true,leave:true,text:''};return{ok:false,text:'That answer is not available.'};}
 export const GOODS=Object.freeze({medkit:{name:'BIOFOAM MEDKIT',price:28,kind:'medkit',amount:1},ration:{name:'TRAIL RATIONS ×2',price:17,kind:'ration',amount:2},water:{name:'CLEAN WATER ×2',price:16,kind:'water',amount:2},ore:{name:'REFINED ORE ×12',price:36,kind:'ore',amount:12},flux:{name:'FLUX CELLS ×28',price:48,kind:'flux',amount:28},relic:{name:'MYSTERY RELIC',price:155,kind:'gear',amount:1}});
-export function buyGood(s,id){const good=GOODS[id];if(!good)return false;const price=Math.ceil(good.price*rpgStat(s,'prices'));if(s.rpg.coins<price)return false;s.rpg.coins-=price;if(good.kind==='gear')generateGear(s,'relic',Math.ceil(s.player.level/2),s.nextId);else s.inventory[good.kind]+=good.amount;rpgMessage(s,`PURCHASED / ${good.name}`,'success');return true;}
+export function buyGood(s,id){const good=ownsCatalogId(GOODS,id)?GOODS[id]:null;if(!good)return false;const price=Math.ceil(good.price*rpgStat(s,'prices'));if(s.rpg.coins<price)return false;s.rpg.coins-=price;if(good.kind==='gear')generateGear(s,'relic',Math.ceil(s.player.level/2),s.nextId);else s.inventory[good.kind]+=good.amount;rpgMessage(s,`PURCHASED / ${good.name}`,'success');return true;}
 export function activeQuest(s){const selected=QUEST_BY_ID[s.rpg.tracked],q=selected&&s.rpg.quests[selected.id]?.status==='active'?selected:QUESTS.find(a=>s.rpg.quests[a.id]?.status==='active');return q||null;}
 export function restoreRPG(data,s){const defaultRpg=makeRPG();if(!data||typeof data!=='object')return defaultRpg;const r=defaultRpg;
  const records=(obj,keys,minimum,maximum)=>{for(const k of keys)if(Number.isFinite(obj?.[k]))r.factions[k]=limit(obj[k],minimum,maximum);};
