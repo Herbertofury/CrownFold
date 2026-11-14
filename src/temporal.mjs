@@ -39,7 +39,7 @@ export function battleAffinity(attacker,defender,facetEra=null){
 }
 export const epochSeed=(base,era)=>((base^ERAS[era]?.seedOffset)||base)|0;
 export function makeTemporal(seed){return {baseSeed:seed,eraPositions:{medieval:{x:0,z:0}},visited:['medieval'],selectedEra:'primeval',facets:[],foldRevision:0,worldCaches:[],worldFlags:{},wonCampaigns:[],insight:0,skill:{ancestor:0,engineer:0,oracle:0},lineage:makeLineage(),returnEra:'medieval',chronicleLog:['You awoke in the Crownless March, 1278. The bells ring in every century.']};}
-export function validEra(era){return Object.hasOwn(ERAS,era);}
+export function validEra(era){return typeof era==='string'&&Object.hasOwn(ERAS,era);}
 export function availableRifts(era){return RIFT_SITES.filter(x=>x.era!==era).map(x=>({...x,type:'advanced'}));}
 export function eraSites(era){const e=ERAS[era];if(!e)return [];return e.siteNames.map((name,i)=>({id:`${era}-${i}`,era,name,x:[-72,96,14][i],z:[-78,55,125][i],kind:'chronicle',description:`A surviving landmark of ${e.period}. History was never erased; it was rearranged.`}));}
 export function facetKey(era,zone,x,z){return `${era}:${zone}:${Math.round(x/24)}:${Math.round(z/24)}`;}
