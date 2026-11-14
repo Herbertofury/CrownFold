@@ -5,6 +5,7 @@ import {ERAS,ERA_ORDER,battleAffinity,facetAt,stampFacet,temporalModifier} from 
 import {WAR_POWERS,COMMANDER_HERITAGES,equippedTech,lineageModifiers,lineageEconomy,lineageTrainingFactor,lineageCooldownFactor} from './lineage.mjs';
 import {makeBattlefieldCover,warPath,firstCoverBetween} from './battlefield.mjs';
 import {stepObjectives} from './war-objectives.mjs';
+const ownsCatalogId=(catalog,id)=>typeof id==='string'&&Object.hasOwn(catalog,id);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 export const WAR_STANCES=Object.freeze({
@@ -106,11 +107,11 @@ export function createWarfront(s,campaign){const enemyEra=campaign.enemyEra||'ne
  const choices=Object.keys(BATTALIONS).filter(id=>BATTALIONS[id].era===enemyEra);const enemyArmy=[makeGroup(s,choices[0]||'pikemen','enemy',0,-103)];
  return {campaign:campaign.id,bellSiege:campaign.id==='siege_of_bells'?{outcomes:Object.fromEntries(BELL_SIEGE_SORTIES.map(q=>[q.id,'pending']))}:null,era:friendlyEra,enemyEra,cover:makeBattlefieldCover(Math.max(0,WAR_CAMPAIGNS.findIndex(c=>c.id===campaign.id))),coverRevision:0,supplies:205,income:2.6,popCap:120,population:army.reduce((n,a)=>n+a.count,0),base:{x:0,z:16,hp:2500,maxHp:2500},enemyBase:{x:0,z:-150,hp:2900,maxHp:2900},anchors:[{id:'west',name:'WESTERN CHRONAL ANCHOR',x:-42,z:-114,hp:860,maxHp:860},{id:'east',name:'EASTERN CHRONAL ANCHOR',x:42,z:-116,hp:860,maxHp:860}],nodes:[{x:-72,z:-45,owner:'neutral',progress:0},{x:72,z:-48,owner:'neutral',progress:0},{x:1,z:-70,owner:'enemy',progress:0}],buildings:[{kind:'barracks',x:-13,z:14,hp:850}],queue:[],army,enemyArmy,enemyWaveTimer:27,enemyDoctrine:campaign.enemyDoctrine||'pressure',enemySupplies:220,enemyIncome:2.3,enemyExhaustion:0,enemyWaves:0,elapsed:0,events:[],victory:null,selectedBattalionIds:[],controlGroups:{},act:'foothold',footholdHold:0,footholdTarget:24,extraction:{x:0,z:-96,active:false,progress:0,target:36,contested:false,nextWave:9,waves:0},supportDrops:[],supportCooldowns:{},selectedBattalionId:null,powerCooldowns:{},riftSurgeNext:70,riftSurgeIndex:0,expedition:null,expeditionNext:24,expeditionIndex:0,expeditionsCompleted:0,expeditionsFailed:0};
 }
-export function trainBattalion(s,type){const w=s.war,def=BATTALIONS[type];if(!w||!def||w.victory||s.zone!=='operation')return false;
+export function trainBattalion(s,type){if(!ownsCatalogId(BATTALIONS,type))return false;const w=s.war,def=BATTALIONS[type];if(!w||!def||w.victory||s.zone!=='operation')return false;
  if(w.population+def.count>w.popCap||!w.buildings.some(b=>b.kind===def.building)||w.supplies<def.cost)return false;
  w.supplies-=def.cost;w.population+=def.count;w.queue.push({type,remaining:def.training*lineageTrainingFactor(s)*(1-.04*(s.temporal?.skill.engineer||0)),side:'ally'});return true;
 }
-export function constructWarBuilding(s,kind){const w=s.war,def=WAR_BUILDINGS[kind];if(!w||!def||w.victory||s.zone!=='operation'||w.supplies<def.cost||w.buildings.length>=15)return false;
+export function constructWarBuilding(s,kind){if(!ownsCatalogId(WAR_BUILDINGS,kind))return false;const w=s.war,def=WAR_BUILDINGS[kind];if(!w||!def||w.victory||s.zone!=='operation'||w.supplies<def.cost||w.buildings.length>=15)return false;
  const n=w.buildings.filter(b=>b.kind===kind).length;w.supplies-=def.cost;w.buildings.push({kind,x:s.player.x+(-1)**n*(12+n*6),z:s.player.z+8+(n%3)*6,hp:def.hp});pushEvent(w,`${def.name} CONSTRUCTED`);return true;
 }
 export function selectWarBattalion(s,id=null){const w=s?.war;if(!w)return false;if(id===null){w.selectedBattalionId=null;w.selectedBattalionIds=[];return true;}return selectWarBattalions(s,[id]);}
@@ -127,12 +128,12 @@ export function recallWarControlGroup(s,index){const w=s?.war;if(!w||!Number.isI
  return selectWarBattalions(s,w.controlGroups[index]||[],false);
 }
 function selectedGroups(w){return w.selectedBattalionIds?.length?w.army.filter(g=>w.selectedBattalionIds.includes(g.id)):w.selectedBattalionId===null?w.army:w.army.filter(g=>g.id===w.selectedBattalionId);}
-export function setWarStance(s,stance){const w=s.war;if(!w||!WAR_STANCES[stance]||w.victory)return false;const groups=selectedGroups(w);if(!groups.length)return false;for(const g of groups)g.stance=stance;pushEvent(w,`${WAR_STANCES[stance].name} STANCE / ${groups.length} BATTALION${groups.length===1?'':'S'}`);return true;}
+export function setWarStance(s,stance){if(!ownsCatalogId(WAR_STANCES,stance))return false;const w=s.war;if(!w||!WAR_STANCES[stance]||w.victory)return false;const groups=selectedGroups(w);if(!groups.length)return false;for(const g of groups)g.stance=stance;pushEvent(w,`${WAR_STANCES[stance].name} STANCE / ${groups.length} BATTALION${groups.length===1?'':'S'}`);return true;}
 export function warOrder(s,order,x,z){const w=s.war;if(!w||w.victory||!['follow','move','defend','assault'].includes(order))return false;const groups=selectedGroups(w);if(!groups.length)return false;
  for(const b of groups){b.order=order;b.tx=Number.isFinite(x)?x:s.player.x;b.tz=Number.isFinite(z)?z:s.player.z;b.navPath=[];b.navRepathAt=0;}
  pushEvent(w,`${order.toUpperCase()} ORDER / ${groups.length} FORMATION${groups.length===1?'':'S'}`);return true;
 }
-export function warCastPower(s,id){const w=s.war,power=WAR_POWERS[id];if(!w||!power||w.victory||s.zone!=='operation'||!equippedTech(s,power.unlock))return false;
+export function warCastPower(s,id){if(!ownsCatalogId(WAR_POWERS,id))return false;const w=s.war,power=WAR_POWERS[id];if(!w||!power||w.victory||s.zone!=='operation'||!equippedTech(s,power.unlock))return false;
  if((w.powerCooldowns[id]||0)>0||w.supplies<power.cost)return false;
  const selected=selectedGroups(w),center=(w.selectedBattalionIds?.length||w.selectedBattalionId!==null)&&selected.length?selected[0]:s.player,near=(b,r=power.radius)=>distance(b,center)<=r;
  let count=0;
@@ -156,7 +157,7 @@ export function canSignalWarExtraction(s){const w=s?.war;if(!w||w.victory||w.act
 export function signalWarExtraction(s){const w=s?.war;if(!canSignalWarExtraction(s))return false;
  w.extraction.active=true;w.extraction.nextWave=8;pushEvent(w,'EVACUATION SIGNAL LIT / HOLD THE TEMPORAL CORRIDOR');return true;
 }
-export function callWarSupport(s,id,x=null,z=null){const w=s?.war,spec=WAR_SUPPORT[id];if(!w||!spec||w.victory||s.zone!=='operation')return false;
+export function callWarSupport(s,id,x=null,z=null){if(!ownsCatalogId(WAR_SUPPORT,id))return false;const w=s?.war,spec=WAR_SUPPORT[id];if(!w||!spec||w.victory||s.zone!=='operation')return false;
  if(w.supplies<spec.cost||(w.supportCooldowns[id]||0)>0)return false;
  const selected=w.army.find(g=>g.id===(w.selectedBattalionIds?.[0]??w.selectedBattalionId)&&g.count>0);
  const aim=s.player.yaw||0,base=selected||s.player;
