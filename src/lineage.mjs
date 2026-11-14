@@ -34,15 +34,16 @@ export const WAR_POWERS=Object.freeze({
  gravity_root:{name:'GRAVITY ROOT',key:'4',unlock:'gravity_garden',cost:85,cooldown:48,radius:36,duration:10,description:'Fold a friendly timewell into a high-gravity bastion, advancing its capture and strengthening defenders.'}
 });
 export const MAX_WEAVE_SLOTS=3;
+const ownsId=(catalog,id)=>typeof id==='string'&&Object.hasOwn(catalog,id);
 export function makeLineage(){return {commanderEra:'medieval',researched:['oath_geometry','ghost_protocol'],equipped:['oath_geometry','ghost_protocol']};}
 export function migrateLineage(data){const def=makeLineage();if(!data||typeof data!=='object')return def;
- const researched=[...new Set([...def.researched,...(Array.isArray(data.researched)?data.researched:[]).filter(id=>Object.hasOwn(LOST_TECH,id))])];
+ const researched=[...new Set([...def.researched,...(Array.isArray(data.researched)?data.researched:[]).filter(id=>ownsId(LOST_TECH,id))])];
  const equipped=[...new Set(Array.isArray(data.equipped)?data.equipped.filter(id=>researched.includes(id)):def.equipped)].slice(0,MAX_WEAVE_SLOTS);
  return {commanderEra:ERA_IDS.includes(data.commanderEra)?data.commanderEra:def.commanderEra,researched,equipped};}
-export function setCommanderHeritage(s,era){if(!s?.temporal||s.zone!=='frontier'||!Object.hasOwn(COMMANDER_HERITAGES,era))return false;s.temporal.lineage=migrateLineage(s.temporal.lineage);s.temporal.lineage.commanderEra=era;return true;}
-export function lostTechCost(s,id){const tech=LOST_TECH[id];if(!tech)return Infinity;const discovered=s?.temporal?.worldCaches?.some(site=>site.startsWith(tech.era+'-'))||false;return Math.max(0,tech.cost-(discovered?4:0));}
-export function researchLostTech(s,id){const t=s?.temporal,tech=LOST_TECH[id];if(!t||!tech||s.zone!=='frontier'||!Number.isFinite(t.insight))return false;t.lineage=migrateLineage(t.lineage);const cost=lostTechCost(s,id);if(t.lineage.researched.includes(id)||t.insight<cost)return false;t.insight-=cost;t.lineage.researched.push(id);return true;}
-export function equipLostTech(s,id){const t=s?.temporal;if(!t||s.zone!=='frontier'||!LOST_TECH[id])return false;t.lineage=migrateLineage(t.lineage);if(!t.lineage.researched.includes(id))return false;const list=t.lineage.equipped,i=list.indexOf(id);if(i>=0){list.splice(i,1);return true;}if(list.length>=MAX_WEAVE_SLOTS)return false;list.push(id);return true;}
+export function setCommanderHeritage(s,era){if(!s?.temporal||s.zone!=='frontier'||!ownsId(COMMANDER_HERITAGES,era))return false;s.temporal.lineage=migrateLineage(s.temporal.lineage);s.temporal.lineage.commanderEra=era;return true;}
+export function lostTechCost(s,id){const tech=ownsId(LOST_TECH,id)?LOST_TECH[id]:null;if(!tech)return Infinity;const discovered=s?.temporal?.worldCaches?.some(site=>site.startsWith(tech.era+'-'))||false;return Math.max(0,tech.cost-(discovered?4:0));}
+export function researchLostTech(s,id){const t=s?.temporal,tech=ownsId(LOST_TECH,id)?LOST_TECH[id]:null;if(!t||!tech||s.zone!=='frontier'||!Number.isFinite(t.insight))return false;t.lineage=migrateLineage(t.lineage);const cost=lostTechCost(s,id);if(t.lineage.researched.includes(id)||t.insight<cost)return false;t.insight-=cost;t.lineage.researched.push(id);return true;}
+export function equipLostTech(s,id){const t=s?.temporal;if(!t||s.zone!=='frontier'||!ownsId(LOST_TECH,id))return false;t.lineage=migrateLineage(t.lineage);if(!t.lineage.researched.includes(id))return false;const list=t.lineage.equipped,i=list.indexOf(id);if(i>=0){list.splice(i,1);return true;}if(list.length>=MAX_WEAVE_SLOTS)return false;list.push(id);return true;}
 export function equippedTech(s,id){return !!s?.temporal?.lineage?.equipped?.includes(id);}
 export function activeWeaves(s){return WEAVE_SYNERGIES.filter(pair=>equippedTech(s,pair.a)&&equippedTech(s,pair.b));}
 export function lineageModifiers(s,group,target=null,location=null){const stance=group?.stance||'balanced',tags=group?.type||'',has=id=>equippedTech(s,id),isRanged=(Number(group?.range)>=15) || (group?.type&&['longbow','hunters','cannons','signalers','synths','murmur','clockseers','sunlancers','nullcouriers','gravitics'].includes(tags));
