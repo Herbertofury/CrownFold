@@ -26,6 +26,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Test actual preferences UI and audio graph
         run: python tests/settings_browser.py
+      - name: Stress last-page preference persistence with raw evidence
+        run: python tests/settings_persistence_browser.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

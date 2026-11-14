@@ -4,7 +4,7 @@ from playwright.sync_api import sync_playwright
 import json, os, traceback
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'test-results';OUT.mkdir(exist_ok=True)
-checks={};errors=[]
+checks={};errors=[];persistence={}
 URL=(ROOT/'dist/CROWNFOLD-RIFTFRONT.html').as_uri()
 KEY='crownfold-player-settings-v1'
 
@@ -97,8 +97,12 @@ with sync_playwright() as pw:
   page=context.new_page();page.add_init_script(f"localStorage.setItem('{KEY}','{{broken')");ready(page)
   checks['malformed_storage_uses_system_default']=snapshot(page)['reduceEffects'] and snapshot(page)['sensitivity']==1
   page.locator('#title-settings').click();page.locator('#setting-effects').uncheck();page.locator('#settings-close').click()
-  # Remove the init script by using another page in the same context.
-  page.close();page=context.new_page();ready(page)
+  persistence['before_close']=page.evaluate("({stored:localStorage.getItem('crownfold-player-settings-v1'),runtime:window.__riftfront.settings})")
+  # Use a fresh document without its corrupt-data init script. Keep a document
+  # alive: Chromium ephemeral file-origin storage can vanish at last-tab close.
+  # Persistent-profile close/relaunch is covered by settings_persistence_browser.py.
+  previous=page;page=context.new_page();ready(page);previous.close()
+  persistence['after_reopen']=page.evaluate("({stored:localStorage.getItem('crownfold-player-settings-v1'),runtime:window.__riftfront.settings})")
   checks['explicit_motion_preference_wins']=not snapshot(page)['reduceEffects']
   context.close()
   # Throw from storage access just as private/restricted contexts can.
@@ -119,6 +123,6 @@ with sync_playwright() as pw:
   context.close()
  except Exception as exc:errors.append(repr(exc)+'\n'+traceback.format_exc(limit=8))
  finally:browser.close()
-result={'checks':checks,'errors':errors,'scope':'Offline browser UI and Web Audio gain graph; no hardware listening or full campaign acceptance.'}
+result={'checks':checks,'errors':errors,'motion_persistence':persistence,'scope':'Offline browser UI and Web Audio gain graph; no hardware listening or full campaign acceptance.'}
 (OUT/'player-settings-browser.json').write_text(json.dumps(result,indent=2));print(json.dumps(result,indent=2))
 assert len(checks)==26 and all(checks.values()) and not errors,'Player settings browser regression'
