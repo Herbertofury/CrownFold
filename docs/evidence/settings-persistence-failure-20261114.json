@@ -1,0 +1,415 @@
+{
+  "browser_version": "141.0.7390.37",
+  "trials": [
+    {
+      "iteration": 0,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    },
+    {
+      "iteration": 1,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    },
+    {
+      "iteration": 2,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    },
+    {
+      "iteration": 3,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    },
+    {
+      "iteration": 4,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    },
+    {
+      "iteration": 5,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    },
+    {
+      "iteration": 6,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    },
+    {
+      "iteration": 7,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    },
+    {
+      "iteration": 8,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    },
+    {
+      "iteration": 9,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    },
+    {
+      "iteration": 10,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": null,
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "passed": false
+    },
+    {
+      "iteration": 11,
+      "initial": {
+        "stored": "{broken",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": true
+        }
+      },
+      "before_close": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "after_reopen": {
+        "stored": "{\"sensitivity\":1,\"invertY\":false,\"volume\":1,\"soundEnabled\":false,\"reduceEffects\":false}",
+        "runtime": {
+          "sensitivity": 1,
+          "invertY": false,
+          "volume": 1,
+          "soundEnabled": false,
+          "reduceEffects": false
+        }
+      },
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "scope": "Offline file-origin synthetic preferences only; no campaign or personal data."
+}
