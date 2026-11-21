@@ -1,9 +1,11 @@
 // CROWNFOLD: RIFTFRONT — original dependency-free survival / RTS / TPS simulation.
 // All persistent gameplay state lives here; rendering, audio and input never own it.
-import {makeRPG,generateBounty,restoreRPG,rpgStat,grantXP,rpgEvent,discoverNearby,markDiscovered,openChest,LANDMARKS,LOCKBOXES,NPCS,DUNGEON_BY_ID,DUNGEONS,perkRank} from './rpg.mjs';
+import {makeRPG,generateBounty,restoreRPG,rpgStat,grantXP,rpgEvent,rpgBountyEvent,discoverNearby,markDiscovered,openChest,LANDMARKS,LOCKBOXES,NPCS,DUNGEON_BY_ID,DUNGEONS,perkRank} from './rpg.mjs';
 import {ERA_ORDER,ERAS,CHRONICLE,availableRifts,eraSites,makeTemporal,migrateTemporal,epochSeed,validEra,cycleFacetEra,stampFacet,facetAt,temporalModifier} from './temporal.mjs';
 import {WAR_CAMPAIGNS,createWarfront,trainBattalion,constructWarBuilding,warOrder,stepWarfront,warObjective,bellSiegeReport,signalWarExtraction,traceWarShot,applyWarShot,warExplosion} from './war.mjs';
 import {makeWarCheckpoint,restoreWarCheckpoint} from './war-checkpoint.mjs';
+import {ECHO_TRIAL,echoTrialOffered,echoTrialUnlocked,echoTrialLensReady} from './echo-trial.mjs';
+import {BELLBACK_REWARD,createBellback,restoreBellback,updateBellback,bellbackFloor,landOnBellback,bellbackCanClaim} from './bellback.mjs';
 export const SEED = 0xC0F01D;
 export const TAU = Math.PI * 2;
 export const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
@@ -82,10 +84,11 @@ const initialSquad=()=>[
   {id:1,x:-2.5,z:2,y:0,hp:125,maxHp:125,role:'VANGUARD',order:'follow',tx:0,tz:0,cooldown:0},
   {id:2,x:2.5,z:2.5,y:0,hp:105,maxHp:105,role:'MEDIC',order:'follow',tx:0,tz:0,cooldown:0}
 ];
-export function createGame(seed=SEED){
+export function createGame(seed=SEED,{generateRoamer=true}={}){
   const p=makePlayer();
   const world={version:1,seed,era:'medieval',temporal:makeTemporal(seed),war:null,zone:'frontier',time:0,dayTime:8.9*3600,weather:'clear',player:p,inventory:{scrap:72,ore:25,fiber:30,flux:90,ration:5,water:5,medkit:4,lockpicks:5},
     rpg:makeRPG(),dungeon:null,drones:[],squad:initialSquad(),buildings:[],enemies:[],hostileShots:[],projectiles:[],effects:[],messages:[],harvested:[],cleared:[],operation:null,stats:{missions:0,waves:0,builds:0,folds:0,echoes:0,death:0,explore:0},
+    bellback:generateRoamer?createBellback(seed,biomeAt,hash):null,bellbackPose:null,bellbackRide:null,bellbackBoarded:false,
     nextId:100,spawnTimer:3,autosaveAt:0,pickups:[],threat:0,lastZonePos:{x:0,z:0},lastEvent:0};generateBounty(world);return world;
 }
 function emit(s,text,type='info'){s.messages.push({id:++s.lastEvent,text,type,at:s.time});if(s.messages.length>12)s.messages.shift();}
@@ -99,7 +102,7 @@ export function issueOrder(s,order,x,z,unitId=null){if(!['follow','move','defend
 export const reloadDuration=name=>({launcher:2.6,rail:2.1,scatter:1.9}[name]??1.6);
 export function reload(s){const p=s.player,w=WEAPONS[p.weapon];if(p.reload>0||p.ammo[p.weapon]>=w.mag||p.reserve[p.weapon]<=0)return false;p.reload=reloadDuration(p.weapon);emit(s,'Reloading');return true;}
 export function setWeapon(s,name){if(!Object.hasOwn(WEAPONS,name))return false;if(s.player.weapon===name)return true;s.player.weapon=name;s.player.reload=0;emit(s,WEAPONS[name].name+' READY');return true;}
-function hitEnemy(s,e,damage,source='player'){if(e.hp<=0)return;e.hp-=damage;effect(s,'hit',e.x,e.z,{amount:Math.round(damage),kind:e.kind});if(e.hp>0)return;e.hp=0;e.dead=true;if(source==='player'){s.player.kills++;grantXP(s,ENEMIES[e.kind].reward);rpgEvent(s,'kill',e.kind);for(const id of s.rpg.companions)s.rpg.affinity[id]=clamp((s.rpg.affinity[id]||0)+.3,0,100);if(e.elite&&s.rpg){s.rpg.coins+=15;emit(s,'ELITE TARGET / +15 CROWNS','success');}}s.pickups.push({id:++s.nextId,x:e.x,z:e.z,y:e.y,kind:e.kind==='factory'?'cache':e.kind==='titan'?'relic':'scrap',amount:e.kind==='factory'?55:e.kind==='titan'?150:3+ENEMIES[e.kind].reward,at:s.time});effect(s,'death',e.x,e.z,{kind:e.kind});if(e.kind==='factory'&&s.operation?.stage===1){s.operation.destroyed++;emit(s,`FABRICATOR DOWN / ${s.operation.destroyed}/2`,'success');}if(e.kind==='titan'&&s.operation?.stage===4){s.operation.bossDead=true;emit(s,'THE IRON SAINT HAS FALLEN','success');}if(s.dungeon?.bossId===e.id){s.dungeon.bossDead=true;emit(s,'DUNGEON GUARDIAN FALLEN / THE RELIC IS UNSEALED','success');}}
+function hitEnemy(s,e,damage,source='player'){if(e.hp<=0)return;e.hp-=damage;effect(s,'hit',e.x,e.z,{amount:Math.round(damage),kind:e.kind});if(e.hp>0)return;e.hp=0;e.dead=true;if(e.echoTrial){defeatEchoTrialTarget(s,e);return;}if(source==='player'){s.player.kills++;grantXP(s,ENEMIES[e.kind].reward);rpgEvent(s,'kill',e.kind);for(const id of s.rpg.companions)s.rpg.affinity[id]=clamp((s.rpg.affinity[id]||0)+.3,0,100);if(e.elite&&s.rpg){s.rpg.coins+=15;emit(s,'ELITE TARGET / +15 CROWNS','success');}}s.pickups.push({id:++s.nextId,x:e.x,z:e.z,y:e.y,kind:e.kind==='factory'?'cache':e.kind==='titan'?'relic':'scrap',amount:e.kind==='factory'?55:e.kind==='titan'?150:3+ENEMIES[e.kind].reward,at:s.time});effect(s,'death',e.x,e.z,{kind:e.kind});if(e.kind==='factory'&&s.operation?.stage===1){s.operation.destroyed++;emit(s,`FABRICATOR DOWN / ${s.operation.destroyed}/2`,'success');}if(e.kind==='titan'&&s.operation?.stage===4){s.operation.bossDead=true;emit(s,'THE IRON SAINT HAS FALLEN','success');}if(s.dungeon?.bossId===e.id){s.dungeon.bossDead=true;emit(s,s.dungeon.revisited?'DUNGEON GUARDIAN FALLEN / RETURN THROUGH EITHER EXIT':'DUNGEON GUARDIAN FALLEN / THE RELIC IS UNSEALED','success');}}
 export function shoot(s,aim,force=false){const p=s.player,w=WEAPONS[p.weapon];if(p.reload>0||p.fireCooldown>0||p.hp<=0)return false;if(p.ammo[p.weapon]<=0){reload(s);return false;}p.ammo[p.weapon]--;p.fireCooldown=w.rate;p.shots++;
   p.lastShotAt=s.time;if(s.rpg.status.cloak>0){s.rpg.status.cloak=0;emit(s,'GHOST VEIL BROKEN BY GUNFIRE','warning');}
   const origin={x:p.x+Math.cos(p.yaw)*.33,z:p.z+Math.sin(p.yaw)*.33,y:terrainHeight(p.x,p.z,s.seed,s.zone)+1.7};let hadHit=false,explosiveImpact=null;
@@ -170,21 +173,78 @@ export function enterDungeon(s,id){const def=DUNGEON_BY_ID[id];if(!def||s.zone!=
  for(let i=0;i<5;i++)spawnEnemy(s,i%3?'specter':'raider',Math.sin(i*2.2)*10,-28-i*3,{dungeonGuard:true});
  for(let i=0;i<6;i++)spawnEnemy(s,i%2?'corruptor':'specter',Math.sin(i*3.3)*12,-68-i*2,{dungeonGuard:true});
  s.spawnTimer=1e9;s.threat=.15;emit(s,`ENTERED ${def.name} / TWO RELAYS LOCK THE GUARDIAN`,'command');return true;}
+function startEchoTrialPhase(s,phase){
+ const trial=s.dungeon.echoTrial={phase,targets:[]};
+ const attackers=phase===1?[['warden',-9,-135,345]]:[['corruptor',12,-139,260],['specter',-12,-116,225]];
+ for(const [kind,x,z,hp] of attackers)trial.targets.push(spawnEnemy(s,kind,x,z,{hp,maxHp:hp,aggro:true,elite:true,echoTrial:true}).id);
+ effect(s,'fold',ECHO_TRIAL.x,ECHO_TRIAL.z);
+ emit(s,phase===1?'THE FOURTH ECHO / BREAK THE SENTINEL':'THE FOURTH ECHO / SURVIVE THE PINCER','command');
+}
+function defeatEchoTrialTarget(s,e){
+ effect(s,'death',e.x,e.z,{kind:e.kind});
+ const trial=s.dungeon?.echoTrial;
+ if(!trial?.targets.includes(e.id))return;
+ trial.targets=trial.targets.filter(id=>id!==e.id);
+ if(!trial.targets.length)emit(s,trial.phase===1?'SENTINEL SILENT / ANSWER THE LENS AGAIN':'ECHO SECURED / LEAVE ALIVE TO BANK INSIGHT','success');
+}
+function settleEchoTrial(s,d,success){
+ if(!d.echoTrial)return;
+ if(!success||s.player.hp<=0||d.echoTrial.phase!==2||d.echoTrial.targets.length||!echoTrialUnlocked(s)){
+  emit(s,'FOURTH ECHO NOT BANKED / THE LENS WILL WAIT','warning');return;
+ }
+ s.rpg.flags[ECHO_TRIAL.flag]=true;
+ s.temporal.insight+=ECHO_TRIAL.insight;
+ s.inventory.flux+=ECHO_TRIAL.flux;
+ s.temporal.chronicleLog.push('The Fourth Echo of the Mirror Maw escaped with you.');
+ s.temporal.chronicleLog=s.temporal.chronicleLog.slice(-40);
+ emit(s,`FOURTH ECHO BANKED / +${ECHO_TRIAL.insight} INSIGHT / +${ECHO_TRIAL.flux} FLUX / C TO RESEARCH`,'success');
+}
+const replayVaultDefeated=d=>d.revisited&&d.bossDead&&d.sigils.every(Boolean);
+export const vaultReadyToLeave=d=>!!(d&&(d.looted||replayVaultDefeated(d)));
 export function leaveDungeon(s,success=false){if(s.zone!=='dungeon'||!s.dungeon)return false;const d=s.dungeon,p=s.player;
  if(success&&!s.rpg.dungeonCleared.includes(d.id)){s.rpg.dungeonCleared.push(d.id);rpgEvent(s,'dungeon',d.id);grantXP(s,140);s.rpg.factions[DUNGEON_BY_ID[d.id].faction]+=12;emit(s,`DUNGEON CONQUERED / ${DUNGEON_BY_ID[d.id].reward}`,'success');}
+ else if(success&&p.hp>0&&replayVaultDefeated(d))rpgBountyEvent(s,'dungeon',d.id);
+ settleEchoTrial(s,d,success);
  s.zone='frontier';p.x=s.lastZonePos.x+3;p.z=s.lastZonePos.z+3;p.y=terrainHeight(p.x,p.z,s.seed,'frontier');p.vy=0;p.memories=[];p.shield=Math.max(10,p.shield);
  s.enemies=[];s.projectiles=[];s.hostileShots=[];s.pickups=[];s.drones=[];s.spawnTimer=8;for(let i=0;i<s.squad.length;i++){const u=s.squad[i];u.x=p.x+(i%3-1)*3;u.z=p.z+3;u.order='follow';}s.dungeon=null;return true;}
 function dungeonInteract(s,target){const d=s.dungeon;if(!d)return false;
- if(target.type==='dungeon-exit')return leaveDungeon(s,d.looted||d.revisited);
+ if(target.type==='dungeon-exit')return leaveDungeon(s,vaultReadyToLeave(d));
+ if(target.type==='echo-trial'){
+  if(echoTrialOffered(s)){startEchoTrialPhase(s,1);return true;}
+  if(d.echoTrial?.phase===1&&!d.echoTrial.targets.length){startEchoTrialPhase(s,2);return true;}
+  return false;
+ }
  if(target.type==='sigil'){const index=target.index;if(d.sigils[index])return false;
   const near=s.enemies.some(e=>e.hp>0&&dist(e,target)<15);if(near){emit(s,'RELAY JAMMED / CLEAR THE GUARDIANS','warning');return false;}
   d.sigils[index]=true;effect(s,'fold',target.x,target.z);emit(s,`MNEMONIC RELAY ${index+1}/2 RESTORED`,'success');
   if(d.sigils.every(Boolean)&&!d.bossId){const bossType=DUNGEON_BY_ID[d.id].boss;const e=spawnEnemy(s,bossType,0,-129,{hp:bossType==='titan'?1100:bossType==='artillery'?590:680,maxHp:bossType==='titan'?1100:bossType==='artillery'?590:680,elite:true,aggro:true});d.bossId=e.id;emit(s,`THE VAULT GUARDIAN WAKES / ${DUNGEON_BY_ID[d.id].bossName}`,'command');}return true;}
- if(target.type==='dungeon-treasure'){if(!d.bossDead){emit(s,'THE RELIC IS SEALED / THE GUARDIAN LIVES','warning');return false;}if(d.looted)return false;
-  d.looted=true;openChest(s,`dungeon:${d.id}`,d.id.length*47);s.inventory.flux+=65;s.rpg.coins+=130;emit(s,'RELIC SECURED / RETURN THROUGH EITHER EXIT','success');return true;}
+ if(target.type==='dungeon-treasure'){if(!d.bossDead){emit(s,'THE RELIC IS SEALED / THE GUARDIAN LIVES','warning');return false;}if(d.looted||d.revisited)return false;
+  d.looted=true;
+  if(openChest(s,`dungeon:${d.id}`,d.id.length*47)){s.inventory.flux+=65;s.rpg.coins+=130;emit(s,'RELIC SECURED / RETURN THROUGH EITHER EXIT','success');}
+  else emit(s,'RELIC ALREADY CLAIMED / RETURN THROUGH EITHER EXIT','command');
+  return true;}
  return false;}
-export function dungeonClamp(o,previous=null){if(!o)return;o.x=clamp(o.x,-18,18);o.z=clamp(o.z,-151,9);
- if(previous){for(const gate of [-20,-65,-107])if((previous.z>gate&&o.z<=gate||previous.z<gate&&o.z>=gate)&&Math.abs(o.x)>6.9)o.z=previous.z;}}
+const DUNGEON_GATE_PLANES=Object.freeze([-20,-65,-107]);
+const DUNGEON_GATE_HALF_WIDTH=6.9;
+export function dungeonClamp(o,previous=null){
+ if(!o)return;
+ // Query the intended segment before clamping to room edges; the clamped
+ // endpoint is not where a dodge/Blink crosses a wall it reaches first.
+ const endX=o.x,endZ=o.z;
+ o.x=clamp(endX,-18,18);o.z=clamp(endZ,-151,9);
+ if(!previous)return;
+ const dz=endZ-previous.z;
+ for(const gate of DUNGEON_GATE_PLANES){
+  if(dz===0){
+   // Keep a lateral move that started in the opening out of the wall plane.
+   if(previous.z===gate&&Math.abs(previous.x)<=DUNGEON_GATE_HALF_WIDTH)o.x=clamp(o.x,-DUNGEON_GATE_HALF_WIDTH,DUNGEON_GATE_HALF_WIDTH);
+   continue;
+  }
+  const t=(gate-previous.z)/dz;
+  if(t<0||t>1)continue;
+  if(Math.abs(previous.x+(endX-previous.x)*t)>DUNGEON_GATE_HALF_WIDTH){o.z=previous.z;return;}
+ }
+}
 export function castAbility(s,id){const a={blink:{flux:12,cooldown:9},nova:{flux:28,cooldown:19},stasis:{flux:32,cooldown:28},cloak:{flux:24,cooldown:32},drone:{flux:38,cooldown:42},rally:{flux:20,cooldown:34}}[id];const p=s.player,rr=s.rpg;if(!a||p.hp<=0)return false;
  const flux=Math.ceil(a.flux*rpgStat(s,'fluxCosts'));if((rr.abilityCooldowns[id]||0)>0||s.inventory.flux<flux)return false;
  s.inventory.flux-=flux;rr.abilityCooldowns[id]=a.cooldown;const fx=p.x,fz=p.z;
@@ -202,10 +262,13 @@ export function dodge(s){const p=s.player;if(p.stamina<28||p.roll>0)return false
  const fx=p.x,fz=p.z;p.x+=Math.sin(p.yaw)*6;p.z-=Math.cos(p.yaw)*6;if(s.zone==='dungeon')dungeonClamp(p,{x:fx,z:fz});p.y=terrainHeight(p.x,p.z,s.seed,s.zone);effect(s,'echo',fx,fz);return true;}
 
 export function nearestInteraction(s){const p=s.player,mode=s.zone;const near=[];
+  if(bellbackCanClaim(s))return {type:'bellback',label:'UNCLIP THE BELLBACK HARNESS / SALVAGE',...s.bellbackPose.deck};
   if(mode==='dungeon'){
     const d=s.dungeon;if(d){for(const exit of [{x:-12,z:6},{x:0,z:-147}])if(dist(p,exit)<6)near.push({type:'dungeon-exit',label:'EXIT DUNGEON / RETURN TO FRONTIER',...exit,d:dist(p,exit)});
      for(const [index,point] of [{x:-11,z:-43},{x:12,z:-83}].entries())if(!d.sigils[index]&&dist(p,point)<6)near.push({type:'sigil',label:`ACTIVATE MEMORY RELAY ${index+1}`,index,...point,d:dist(p,point)});
-     if(!d.looted&&dist(p,{x:7,z:-137})<6)near.push({type:'dungeon-treasure',label:'UNSEAL THE RELIC CACHE',x:7,z:-137,d:dist(p,{x:7,z:-137})});
+     if(echoTrialLensReady(s)&&dist(p,ECHO_TRIAL)<ECHO_TRIAL.reach)
+      near.push({type:'echo-trial',label:d.echoTrial?'ANSWER THE SECOND ECHO':'LISTEN TO THE FOURTH ECHO / OPTIONAL TRIAL',x:ECHO_TRIAL.x,z:ECHO_TRIAL.z,d:dist(p,ECHO_TRIAL)});
+     if(!d.revisited&&!d.looted&&dist(p,{x:7,z:-137})<6)near.push({type:'dungeon-treasure',label:'UNSEAL THE RELIC CACHE',x:7,z:-137,d:dist(p,{x:7,z:-137})});
     }
     return near.sort((a,b)=>a.d-b.d)[0]||null;
   }
@@ -226,7 +289,10 @@ export function changeEpoch(s,destination){if(s.zone!=='frontier'||!validEra(des
 export function caravanEra(s,id){const site=eraSites(s.era).find(p=>p.id===id);if(!site||s.zone!=='frontier'||!s.temporal.worldCaches.includes(id)||s.inventory.flux<12||s.enemies.some(e=>e.hp>0&&dist(e,s.player)<25))return false;s.inventory.flux-=12;s.player.x=site.x+3;s.player.z=site.z+3;s.player.y=terrainHeight(s.player.x,s.player.z,s.seed,s.zone);s.player.memories=[];emit(s,`CARAVAN RIFT / ${site.name} / -12 FLUX`,'command');return true;}
 export function selectEpoch(s){const era=cycleFacetEra(s);emit(s,`CHRONOFOLD TARGET / ${ERAS[era].name}`,'command');return era;}
 export function surveyChronicle(s,id){const place=eraSites(s.era).find(x=>x.id===id);if(!place||s.temporal.worldCaches.includes(id))return false;s.temporal.worldCaches.push(id);s.temporal.insight+=8;s.inventory.flux+=30;s.inventory.ore+=15;s.rpg.coins+=35;s.temporal.chronicleLog.push(`Explored ${place.name} in ${ERAS[s.era].period}`);emit(s,`CHRONICLE DISCOVERED / ${place.name} / +8 INSIGHT / +30 FLUX`,'success');return true;}
-export function interact(s){const target=nearestInteraction(s);if(!target){emit(s,'Nothing in reach');return false;}if(target.type==='lock'){s.rpg.lockUI=target.lockId;return true;}if(target.type==='board'){s.rpg.boardOpen=true;return true;}if(target.type==='npc'){s.rpg.dialogue=target.npcId;return true;}if(target.type==='dungeon')return enterDungeon(s,target.dungeonId);if(target.type==='chest')return openChest(s,target.chestId,target.x|0);if(s.zone==='dungeon')return dungeonInteract(s,target);if(target.type==='advanced')return changeEpoch(s,target.era);if(target.type==='chronicle-cache')return surveyChronicle(s,target.id);if(target.type==='gate')return enterOperation(s,target.contract);if(target.type==='war-extract'){const called=signalWarExtraction(s);if(called)emit(s,'TIMEFALL EXTRACTION INBOUND / STAND YOUR GROUND','command');return called;}if(target.type==='extract'){s.operation.extracting=true;emit(s,'EXTRACTION SIGNAL / HOLD THE ZONE','command');return true;}if(target.type==='resource'){
+export function interact(s){const target=nearestInteraction(s);if(!target){emit(s,'Nothing in reach');return false;}if(target.type==='bellback'){
+ s.bellback.claimed=true;s.inventory.ore+=BELLBACK_REWARD.ore;s.inventory.flux+=BELLBACK_REWARD.flux;grantXP(s,BELLBACK_REWARD.xp);
+ emit(s,'BELLBACK SALVAGE / +28 ORE / +45 FLUX / +180 XP','success');return true;
+}if(target.type==='lock'){s.rpg.lockUI=target.lockId;return true;}if(target.type==='board'){s.rpg.boardOpen=true;return true;}if(target.type==='npc'){s.rpg.dialogue=target.npcId;return true;}if(target.type==='dungeon')return enterDungeon(s,target.dungeonId);if(target.type==='chest')return openChest(s,target.chestId,target.x|0);if(s.zone==='dungeon')return dungeonInteract(s,target);if(target.type==='advanced')return changeEpoch(s,target.era);if(target.type==='chronicle-cache')return surveyChronicle(s,target.id);if(target.type==='gate')return enterOperation(s,target.contract);if(target.type==='war-extract'){const called=signalWarExtraction(s);if(called)emit(s,'TIMEFALL EXTRACTION INBOUND / STAND YOUR GROUND','command');return called;}if(target.type==='extract'){s.operation.extracting=true;emit(s,'EXTRACTION SIGNAL / HOLD THE ZONE','command');return true;}if(target.type==='resource'){
   s.harvested.push(target.id);const base=target.resource==='fiber'?5:target.resource==='ore'?4:['ration','water'].includes(target.resource)?1:8,amount=Math.ceil(base*rpgStat(s,'harvest'));s.inventory[target.resource]+=amount;rpgEvent(s,'harvest',target.resource,amount);
   if(target.resource==='ore')s.inventory.scrap+=2;
   emit(s,`+${amount} ${target.resource.toUpperCase()}`,'success');effect(s,'harvest',target.x,target.z);return true;
@@ -335,9 +401,12 @@ function updatePlayer(s,input,dt){const p=s.player;
   if(s.war)for(const cover of s.war.cover||[])if(cover.hp>0){const dx=p.x-cover.x,dz=p.z-cover.z,d=Math.hypot(dx,dz),limit=cover.radius*.87+1;
     if(d<limit){if(d>.05){p.x=cover.x+dx/d*limit;p.z=cover.z+dz/d*limit;}else{p.x=previous.x;p.z=previous.z;}}}
   p.yaw=Number.isFinite(input.yaw)?input.yaw:p.yaw;p.pitch=clamp(Number.isFinite(input.pitch)?input.pitch:p.pitch,-1.05,.55);
-  const floor=terrainHeight(p.x,p.z,s.seed,s.zone),grounded=p.y<=floor+.02;
-  if(input.jump&&grounded&&!input.commander){p.vy=7.5;p.y=floor+.1;p.stamina=Math.max(0,p.stamina-12);}
-  p.vy-=21*dt;p.y+=p.vy*dt;if(p.y<floor){p.y=floor;p.vy=0;}
+  const ground=terrainHeight(p.x,p.z,s.seed,s.zone),floor=s.bellbackPose?bellbackFloor(s,ground):ground,grounded=p.y<=floor+.02;
+  if(input.jump&&grounded&&!input.commander){p.vy=7.5;p.y=floor+.1;p.stamina=Math.max(0,p.stamina-12);s.bellbackRide=null;}
+  const heightBefore=p.y;
+  p.vy-=21*dt;p.y+=p.vy*dt;
+  if(s.bellbackPose)landOnBellback(s,heightBefore,ground);
+  if(p.y<ground){p.y=ground;p.vy=0;}
   p.stamina=clamp(p.stamina+(p.sprint?-21*rpgStat(s,'staminaCost'):15)*dt,0,100);
   p.hunger=clamp(p.hunger-dt*(p.sprint?.035:.018),0,100);p.thirst=clamp(p.thirst-dt*(p.sprint?.058:.031),0,100);
   if((p.hunger<=0||p.thirst<=0)&&Math.floor(s.time)%3===0)p.hp-=dt*2.5;
@@ -350,7 +419,7 @@ function updatePlayer(s,input,dt){const p=s.player;
 }
 function droneBrain(s,d,dt){if(s.time>=d.expires)return;d.cooldown=Math.max(0,d.cooldown-dt);const p=s.player;const orb=d.id*1.8+s.time*.7;const goal={x:p.x+Math.sin(orb)*4,z:p.z+Math.cos(orb)*4},dx=goal.x-d.x,dz=goal.z-d.z,sep=Math.hypot(dx,dz)||1;d.x+=dx/sep*Math.min(sep,14*dt);d.z+=dz/sep*Math.min(sep,14*dt);
  if(d.cooldown<=0){let best=30,target=null;for(const e of s.enemies)if(e.hp>0&&dist(d,e)<best){best=dist(d,e);target=e;}if(target){hitEnemy(s,target,23*rpgStat(s,'squad'),'squad');effect(s,'allytracer',d.x,d.z,{fromY:terrainHeight(d.x,d.z,s.seed,s.zone)+3,toX:target.x,toY:target.y+1,toZ:target.z});d.cooldown=.46;}}}
-export function stepGame(s,input={},dt=1/30){if(!s||dt<=0)return s;dt=Math.min(dt,.1);s.time+=dt;for(const key of Object.keys(s.rpg.abilityCooldowns))s.rpg.abilityCooldowns[key]=Math.max(0,s.rpg.abilityCooldowns[key]-dt);for(const key of ['cloak','rally'])s.rpg.status[key]=Math.max(0,s.rpg.status[key]-dt);s.dayTime=(s.dayTime+dt*7)%86400;if(Math.floor(s.time/180)!==Math.floor((s.time-dt)/180)){const r=hash(Math.floor(s.time/180),0,s.seed);s.weather=r<.26?'storm':r<.49?'rain':'clear';emit(s,`WEATHER SHIFT / ${s.weather.toUpperCase()}`,'command');}updatePlayer(s,input,dt);
+export function stepGame(s,input={},dt=1/30){if(!s||dt<=0)return s;dt=Math.min(dt,.1);s.time+=dt;for(const key of Object.keys(s.rpg.abilityCooldowns))s.rpg.abilityCooldowns[key]=Math.max(0,s.rpg.abilityCooldowns[key]-dt);for(const key of ['cloak','rally'])s.rpg.status[key]=Math.max(0,s.rpg.status[key]-dt);s.dayTime=(s.dayTime+dt*7)%86400;if(Math.floor(s.time/180)!==Math.floor((s.time-dt)/180)){const r=hash(Math.floor(s.time/180),0,s.seed);s.weather=r<.26?'storm':r<.49?'rain':'clear';emit(s,`WEATHER SHIFT / ${s.weather.toUpperCase()}`,'command');}if(updateBellback(s,terrainHeight))emit(s,'BELLBACK SIGHTED / FOLLOW THE GOLD PLATFORM / SPACE TO CLIMB','command');updatePlayer(s,input,dt);
   if(s.zone==='operation')updateOperation(s,dt);else if(s.zone==='frontier'){discoverNearby(s);if(s.rpg.worldEnding==='archive')s.inventory.flux=Math.min(999,s.inventory.flux+dt*.12);}
   for(const e of [...s.enemies])if(e.hp>0)enemyBrain(s,e,dt);
   resolveHostileShots(s,dt);
@@ -365,9 +434,9 @@ export function stepGame(s,input={},dt=1/30){if(!s||dt<=0)return s;dt=Math.min(d
   s.buildings=s.buildings.filter(b=>b.hp>0);
   spawnDirector(s,dt);return s;
 }
-export function serialize(s){return JSON.stringify({warCheckpoint:makeWarCheckpoint(s),rpg:{...s.rpg,dialogue:null,status:{cloak:0,rally:0},abilityCooldowns:{}},version:s.version,seed:s.zone==='operation'?epochSeed(s.temporal.baseSeed,s.temporal.returnEra):s.seed,era:s.zone==='operation'?s.temporal.returnEra:s.era,temporal:s.temporal,dayTime:s.dayTime,weather:s.weather,inventory:s.inventory,player:{...s.player,x:s.zone!=='frontier'?s.lastZonePos.x:s.player.x,z:s.zone!=='frontier'?s.lastZonePos.z:s.player.z,memories:[]},squad:s.zone!=='frontier'?s.squad.map((u,i)=>({...u,x:s.lastZonePos.x+(i-2)*2,z:s.lastZonePos.z+3+i%2,y:terrainHeight(s.lastZonePos.x+(i-2)*2,s.lastZonePos.z+3+i%2,s.seed,'frontier'),order:'follow'})):s.squad,buildings:s.buildings.filter(b=>b.zone==='frontier'),harvested:s.harvested,cleared:s.cleared,stats:s.stats,nextId:s.nextId});}
+export function serialize(s){return JSON.stringify({warCheckpoint:makeWarCheckpoint(s),rpg:{...s.rpg,dialogue:null,status:{cloak:0,rally:0},abilityCooldowns:{}},version:s.version,bellback:s.bellback,seed:s.zone==='operation'?epochSeed(s.temporal.baseSeed,s.temporal.returnEra):s.seed,era:s.zone==='operation'?s.temporal.returnEra:s.era,temporal:s.temporal,dayTime:s.dayTime,weather:s.weather,inventory:s.inventory,player:{...s.player,x:s.zone!=='frontier'?s.lastZonePos.x:s.player.x,z:s.zone!=='frontier'?s.lastZonePos.z:s.player.z,memories:[]},squad:s.zone!=='frontier'?s.squad.map((u,i)=>({...u,x:s.lastZonePos.x+(i-2)*2,z:s.lastZonePos.z+3+i%2,y:terrainHeight(s.lastZonePos.x+(i-2)*2,s.lastZonePos.z+3+i%2,s.seed,'frontier'),order:'follow'})):s.squad,buildings:s.buildings.filter(b=>b.zone==='frontier'),harvested:s.harvested,cleared:s.cleared,stats:s.stats,nextId:s.nextId});}
 export function restore(raw){let data;try{data=typeof raw==='string'?JSON.parse(raw):raw;}catch{return null;}if(!data||data.version!==1||!Number.isFinite(data.seed)||!data.inventory||!data.player||!Array.isArray(data.buildings)||!Array.isArray(data.squad))return null;
-  const s=createGame(data.seed);s.temporal=migrateTemporal(data.temporal,data.seed);s.era=validEra(data.era)?data.era:'medieval';s.seed=epochSeed(s.temporal.baseSeed,s.era);s.rpg=restoreRPG(data.rpg,s);s.dayTime=Number.isFinite(data.dayTime)?data.dayTime:s.dayTime;
+  const s=createGame(data.seed,{generateRoamer:false});s.temporal=migrateTemporal(data.temporal,data.seed);s.bellback=Object.hasOwn(data,'bellback')?restoreBellback(data.bellback,s.temporal.baseSeed,biomeAt):createBellback(s.temporal.baseSeed,biomeAt,hash);s.era=validEra(data.era)?data.era:'medieval';s.seed=epochSeed(s.temporal.baseSeed,s.era);s.rpg=restoreRPG(data.rpg,s);s.dayTime=Number.isFinite(data.dayTime)?data.dayTime:s.dayTime;
   for(const name of Object.keys(s.inventory))if(Number.isFinite(data.inventory[name]))s.inventory[name]=clamp(data.inventory[name],0,100000);
   for(const name of Object.keys(s.player))if(name in data.player){const v=data.player[name];if(typeof s.player[name]==='number'&&Number.isFinite(v))s.player[name]=clamp(v,-10000,10000);else if(name==='weapon'&&typeof v==='string'&&Object.hasOwn(WEAPONS,v))s.player.weapon=v;else if(['ammo','reserve'].includes(name)&&v&&typeof v==='object'){for(const type of Object.keys(WEAPONS))if(Number.isFinite(v[type]))s.player[name][type]=clamp(v[type],0,9999);}}
   s.player.maxHp=rpgStat(s,'health');s.player.maxShield=rpgStat(s,'shield');s.player.shield=clamp(s.player.shield,0,s.player.maxShield);s.player.memories=[];s.player.x=clamp(s.player.x,-10000,10000);s.player.z=clamp(s.player.z,-10000,10000);s.player.y=terrainHeight(s.player.x,s.player.z,s.seed);s.player.hp=clamp(s.player.hp,1,s.player.maxHp);

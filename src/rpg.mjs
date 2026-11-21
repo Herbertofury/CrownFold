@@ -1,6 +1,8 @@
 // CROWNFOLD: RIFTFRONT — original RPG rules. Pure-state, dependency-free systems.
 // The shooter simulation owns enemies, terrain and movement; this module owns persistent RPG state.
 import {ERA_ENVOYS} from './temporal.mjs';
+import {ECHO_TRIAL_RUMOR,echoTrialUnlocked} from './echo-trial.mjs';
+import {bellbackTrailHint} from './bellback.mjs';
 const limit=(x,a,b)=>Math.max(a,Math.min(b,x));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const random01=(a,b,seed)=>{let n=(Math.imul(a|0,374761393)+Math.imul(b|0,668265263)+Math.imul(seed|0,1442695041))|0;n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967296;};
@@ -147,11 +149,15 @@ function reconcileDiscoveryQuest(r,id){
 }
 export function takeQuest(s,id){const q=ownsCatalogId(QUEST_BY_ID,id)?QUEST_BY_ID[id]:null;if(!q||s.rpg.quests[id]||q.prerequisite&&s.rpg.quests[q.prerequisite]?.status!=='done')return false;s.rpg.quests[id]={status:'active',progress:0};reconcileDungeonQuest(s.rpg,id);reconcileDiscoveryQuest(s.rpg,id);s.rpg.tracked=id;rpgMessage(s,s.rpg.quests[id].status==='ready'?`QUEST READY / RETURN TO ${NPC_BY_ID[q.giver].name}`:`QUEST BEGUN / ${q.name}`,'command');return true;}
 export function turnInQuest(s,id){const q=ownsCatalogId(QUEST_BY_ID,id)?QUEST_BY_ID[id]:null,state=s.rpg.quests[id];if(!q||state?.status!=='ready')return false;state.status='done';giveReward(s,q.rewards);for(const id of s.rpg.companions)s.rpg.affinity[id]=limit((s.rpg.affinity[id]||0)+6,0,100);s.rpg.tracked=QUESTS.find(a=>s.rpg.quests[a.id]?.status==='active')?.id||null;rpgMessage(s,`QUEST COMPLETE / ${q.name}`,'success');return true;}
-export function rpgEvent(s,type,target='any',amount=1){if(!s.rpg)return;
- const b=s.rpg.bounty;if(b?.status==='active'&&b.goal.type===type&&(b.goal.target==='any'||b.goal.target===target)){
+// Radiant contracts can count a fresh visit without replaying finite story credit.
+export function rpgBountyEvent(s,type,target='any',amount=1){
+ const b=s.rpg?.bounty;if(b?.status==='active'&&b.goal.type===type&&(b.goal.target==='any'||b.goal.target===target)){
   let n=Math.max(0,amount);if(type==='dungeon'){if(b.unique.includes(target))n=0;else b.unique.push(target);}
   b.progress=limit(b.progress+n,0,b.goal.count);if(b.progress>=b.goal.count){b.status='ready';rpgMessage(s,`BOUNTY COMPLETE / RETURN TO THE NOTICE BOARD`,'success');}}
-for(const [id,state] of Object.entries(s.rpg.quests)){if(state.status!=='active')continue;const q=ownsCatalogId(QUEST_BY_ID,id)?QUEST_BY_ID[id]:null;if(!q||q.goal.type!==type||q.goal.target!=='any'&&q.goal.target!==target)continue;const increment=type==='dungeon'&&q.goal.target==='any'?(state.unique??=[]).includes(target)?0:(state.unique.push(target),1):Math.max(0,amount);state.progress=limit(state.progress+increment,0,q.goal.count);if(state.progress>=q.goal.count){state.status='ready';rpgMessage(s,`QUEST READY / RETURN TO ${NPC_BY_ID[q.giver]?.name||'THE GIVER'}`,'success');}}}
+}
+export function rpgEvent(s,type,target='any',amount=1){if(!s.rpg)return;
+ rpgBountyEvent(s,type,target,amount);
+ for(const [id,state] of Object.entries(s.rpg.quests)){if(state.status!=='active')continue;const q=ownsCatalogId(QUEST_BY_ID,id)?QUEST_BY_ID[id]:null;if(!q||q.goal.type!==type||q.goal.target!=='any'&&q.goal.target!==target)continue;const increment=type==='dungeon'&&q.goal.target==='any'?(state.unique??=[]).includes(target)?0:(state.unique.push(target),1):Math.max(0,amount);state.progress=limit(state.progress+increment,0,q.goal.count);if(state.progress>=q.goal.count){state.status='ready';rpgMessage(s,`QUEST READY / RETURN TO ${NPC_BY_ID[q.giver]?.name||'THE GIVER'}`,'success');}}}
 // A recipe is atomic: never pay for output that cannot fit in the loadout.
 export function craftingStatus(s,id){const spec=ownsCatalogId(RECIPES,id)?RECIPES[id]:null;if(!spec)return{ok:false,reason:'UNKNOWN RECIPE',cost:{}};
  const discount=rpgStat(s,'discount'),cost=Object.fromEntries(Object.entries(spec.cost).map(([k,n])=>[k,Math.ceil(n*discount)]));
@@ -186,17 +192,21 @@ export function recruitCompanion(s,id){const npc=NPC_BY_ID[id];if(!npc?.companio
  s.rpg.coins-=75;s.rpg.companions.push(id);s.rpg.affinity[id]=0;s.squad.push({id:++s.nextId,npcId:id,x:s.player.x+2,z:s.player.z+2,y:0,hp:npc.companion==='HEAVY'?220:135,maxHp:npc.companion==='HEAVY'?220:135,role:npc.companion,order:'follow',tx:s.player.x,tz:s.player.z,cooldown:0});rpgMessage(s,`${npc.name} JOINED YOUR COMPANY`,'success');return true;}
 export function dialogueOptions(s,id){const npc=NPC_BY_ID[id];if(!npc)return[];const result=[{id:'lore',text:'Tell me about this place.',kind:'lore'}];
  for(const qid of npc.quests||[]){const q=QUEST_BY_ID[qid],state=s.rpg.quests[qid];if(!state&&(!q.prerequisite||s.rpg.quests[q.prerequisite]?.status==='done'))result.unshift({id:'accept:'+qid,text:`Take quest: ${q.name}`,kind:'quest'});else if(state?.status==='ready')result.unshift({id:'turnin:'+qid,text:`Turn in: ${q.name}`,kind:'turnin'});}
+ if(id==='sable'&&s.bellback&&!s.bellback.claimed)result.push({id:'bellback-tracks',text:'What made those enormous tracks?',kind:'lore'});
  if(npc.vendor)result.push({id:'trade',text:'Show me your wares.',kind:'trade'});
  if(npc.companion&&!s.rpg.companions.includes(id))result.push({id:'recruit',text:'Join my company (75 crowns).',kind:'recruit'});
  if(['rhys','sable','lyra'].includes(id)&&!s.rpg.allegiance)result.push({id:'pledge',text:`Swear allegiance to ${FACTIONS[npc.faction].name}.`,kind:'pledge'});
  if(s.player.crouch&&!s.rpg.flags['stole:'+id])result.push({id:'steal',text:'[SNEAK] Try to pick their pocket.',kind:'crime'});
  if(id==='rhys'&&s.rpg.crime.bounty>0)result.push({id:'fine',text:`Pay ${s.rpg.crime.bounty} crowns to clear the bounty.`,kind:'fine'});
+ if(id==='lyra'&&echoTrialUnlocked(s))result.push({id:'fourth-echo-rumor',text:'Is there more than the Three Echoes?',kind:'lore'});
  if(id==='lyra'&&s.rpg.quests.the_three_echoes?.status==='done'&&!s.rpg.worldEnding)for(const f of Object.keys(FACTIONS))result.push({id:'shape:'+f,text:`Shape the frontier for ${FACTIONS[f].name}.`,kind:'ending'});
  if(s.rpg.companions.includes(id))result.push({id:'bond',text:'How are we holding together?',kind:'bond'});
  result.push({id:'leave',text:'Until next time.',kind:'leave'});return result;}
 export function dialogueChoice(s,npcId,choiceId){const npc=NPC_BY_ID[npcId];if(!npc||distance(s.player,npc)>12||s.zone!=='frontier'||(npc.era||'medieval')!==s.era)return {ok:false,text:'No one is there.'};
  if(choiceId==='steal')return attemptPickpocket(s,npcId);
  if(choiceId==='fine'){const ok=npcId==='rhys'&&payFine(s);return{ok,text:ok?'Your criminal record has been cleared. Do not make us regret this.':'Not enough crowns to pay your fine.'};}
+ if(choiceId==='bellback-tracks'&&npcId==='sable'&&bellbackTrailHint(s))return {ok:true,text:bellbackTrailHint(s)};
+ if(choiceId==='fourth-echo-rumor'&&npcId==='lyra'&&echoTrialUnlocked(s))return {ok:true,text:ECHO_TRIAL_RUMOR};
  if(choiceId==='lore')return {ok:true,text:npc.role==='Rift Archaeologist'?'There are three old vaults: mirrored glass, living roots, and a submerged library. Each remembers the same day differently.':npc.line};
  if(choiceId==='trade'&&npc.vendor)return {ok:true,trade:true,text:'Crowns first. Secrets later.'};
  if(choiceId==='recruit'){const ok=recruitCompanion(s,npcId);return{ok,text:ok?`${npc.name} is yours to command.`:'You need 75 crowns, an open squad slot, and sufficient faction standing.'};}
