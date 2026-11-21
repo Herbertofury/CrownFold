@@ -1,7 +1,7 @@
 import {frontierGuidance,guidanceQuest,markerPlacement} from './navigation.mjs';
 import {objectiveRuntime} from './war-objectives.mjs';
 import {tacticalRuntime} from './battlefield.mjs';
-import {createGame,restore,serialize,stepGame,WEAPONS,STRUCTURES,CONTRACTS,clamp,fmtTime,dist,terrainHeight,biomeAt,worldGates,nearestInteraction,interact,enterOperation,finishOperation,addBuilding,recruit,issueOrder,fold,echo,grenade,orbital,resupply,reload,setWeapon,useConsumable,consumableStatus,castAbility,dodge,sleepAtCamp} from './sim.mjs';
+import {createGame,restore,serialize,stepGame,WEAPONS,STRUCTURES,CONTRACTS,clamp,fmtTime,vaultReadyToLeave,dist,terrainHeight,biomeAt,worldGates,nearestInteraction,interact,enterOperation,finishOperation,addBuilding,recruit,issueOrder,fold,echo,grenade,orbital,resupply,reload,setWeapon,useConsumable,consumableStatus,castAbility,dodge,sleepAtCamp} from './sim.mjs';
 import {NPCS,NPC_BY_ID,LANDMARKS,DUNGEON_BY_ID,FACTIONS,PERKS,ABILITIES,QUESTS,QUEST_BY_ID,RECIPES,GOODS,RARITIES,perkRank,rpgStat,buyPerk,equipGear,salvageGear,craft,craftingStatus,fastTravel,dialogueOptions,dialogueChoice,buyGood,startBounty,claimBounty,generateBounty,LOCKBOXES,attemptLock} from './rpg.mjs';
 import {WorldRenderer} from './render.mjs';
 import {ERAS,ERA_ORDER,CHRONICLE,availableRifts,eraSites,spendInsight} from './temporal.mjs';
@@ -10,6 +10,8 @@ import {BATTALIONS,WAR_BUILDINGS,WAR_CAMPAIGNS,WAR_STANCES,WAR_SUPPORT,trainBatt
 import {selectEpoch} from './sim.mjs';
 import {DEFAULT_SETTINGS,loadSettings,saveSettings,normalizeSettings,aimDelta,masterVolume} from './settings.mjs';
 import {weaponCard,reloadProgress} from './arsenal.mjs';
+import {ECHO_TRIAL,echoTrialDirective,echoTrialLensReady} from './echo-trial.mjs';
+import {bellbackPrompt} from './bellback.mjs';
 const $=id=>document.getElementById(id),canvas=$('world');
 const runtime=tacticalRuntime();
 $('tactics-runtime').textContent=runtime.backend==='rust-wasm'?'RUST TACTICS · WASM':'JS TACTICS · COMPATIBILITY MODE';
@@ -20,9 +22,18 @@ let settings=loadSettings(settingsStorage,settingsDefaults);
 const settingsDialog=$('settings-dialog'),arsenalDialog=$('arsenal-dialog');
 let arsenalChoice=null;
 const SAVE_KEY='crownfold-riftfront-save-v1',QUICK_SAVE_KEY='crownfold-riftfront-quick-save-v1';
-let currentSaveKey=SAVE_KEY;
-const safeSave=()=>{try{localStorage.setItem(currentSaveKey,serialize(s));return true;}catch{return false;}};
-const safeLoad=(key=SAVE_KEY)=>{try{return restore(localStorage.getItem(key));}catch{return null;}};
+let currentSaveKey=SAVE_KEY,recoverySource=null;
+const pauseDescription=$('pause-description'),normalPauseDescription=pauseDescription.textContent;
+const safeSave=(confirmedRecovery=false)=>{
+ if(recoverySource!==null&&!confirmedRecovery)return false;
+ try{localStorage.setItem(currentSaveKey,serialize(s));return true;}catch{return false;}
+};
+function readSave(key){try{const raw=localStorage.getItem(key),state=restore(raw);return state?{raw,state}:null;}catch{return null;}}
+function refreshRecoveryControls(){
+ const recovering=recoverySource!==null;
+ pauseDescription.textContent=recovering?'The War Rift checkpoint could not be loaded. Recovered frontier progress is not saved automatically. Save Recovered Progress to replace the unreadable checkpoint, or leave it untouched.':normalPauseDescription;
+ $('save-button').textContent=recovering?'SAVE RECOVERED PROGRESS':'SAVE PROGRESS NOW';
+}
 const hasSave=key=>{try{return localStorage.getItem(key)!==null;}catch{return false;}};
 let s=createGame(),renderer,active=false,paused=false,commander=false,commanderCompact=false,buildMenu=false,help=false,mapExpanded=false,rpgMenu=false,dialogue=false,lockMenu=false,lockId=null,rpgTab='inventory',selectedPlace='home',dialogueReply='',trading=false,order='move',quality='high',last=performance.now(),bank=0,lastUi=0,lastMini=0,lastNotice=0,lastAutoSave=0,healthBefore=s.player.hp,zoneBefore='frontier',eraBefore='medieval',shotBefore=0;
 const keys=new Set(),input={x:0,z:0,sprint:false,jump:false,aim:false,fire:false,commander:false,yaw:0,pitch:-.075};
@@ -32,7 +43,7 @@ try{renderer=new WorldRenderer(canvas,quality);}catch(e){$('error').textContent=
 let audio=null,masterGain=null;let weakBefore=0;
 function tone(freq=220,seconds=.1,kind='triangle',volume=.12,end=freq*.6){if(!audio)return;try{const o=audio.createOscillator(),g=audio.createGain(),now=audio.currentTime;o.type=kind;o.frequency.setValueAtTime(freq,now);o.frequency.exponentialRampToValueAtTime(Math.max(20,end),now+seconds);g.gain.setValueAtTime(volume,now);g.gain.exponentialRampToValueAtTime(.0001,now+seconds);o.connect(g);g.connect(masterGain);o.start(now);o.stop(now+seconds+.01);}catch{}}
 function sound(name){if(name==='shoot')tone(s.player.weapon==='rail'?150:350,.09,'sawtooth',.04,45);if(name==='hit')tone(790,.10,'square',.025,360);if(name==='fold'){tone(145,.65,'sine',.15,800);tone(420,.37,'triangle',.07,120);}if(name==='echo')tone(1000,.55,'sine',.1,130);if(name==='notification')tone(430,.22,'sine',.045,620);if(name==='explosion')tone(80,.48,'sawtooth',.15,28);if(name==='build')tone(180,.2,'triangle',.08,390);}
-function updateContinue(){for(const [id,key,label] of [['continue-game',SAVE_KEY,'CONTINUE OPEN WORLD'],['continue-quick',QUICK_SAVE_KEY,'CONTINUE QUICK SESSION']]){const saved=safeLoad(key),button=$(id);button.disabled=!saved;button.textContent=saved?.war?'RESUME '+(key===SAVE_KEY?'WORLD':'QUICK')+' WAR / '+saved.operation.name:label;}}
+function updateContinue(){for(const [id,key,label] of [['continue-game',SAVE_KEY,'CONTINUE OPEN WORLD'],['continue-quick',QUICK_SAVE_KEY,'CONTINUE QUICK SESSION']]){const saved=readSave(key)?.state,button=$(id);button.disabled=!saved;button.textContent=saved?.checkpointWarning?'RECOVER '+(key===SAVE_KEY?'WORLD':'QUICK')+' FRONTIER':saved?.war?'RESUME '+(key===SAVE_KEY?'WORLD':'QUICK')+' WAR / '+saved.operation.name:label;}}
 updateContinue();
 const canCapturePointer=()=>!arsenalDialog.open&&!commander&&!paused&&!buildMenu&&!help&&!rpgMenu&&!dialogue&&!lockMenu&&active;
 function pointer(){if(canCapturePointer()&&document.pointerLockElement!==canvas){try{
@@ -46,20 +57,31 @@ function setVisibility(id,show){$(id).classList.toggle('hidden',!show);}
 function start(kind='new'){
  const quick=['drop','war','continue-quick'].includes(kind),key=quick?QUICK_SAVE_KEY:SAVE_KEY;
  if(['new','drop','war'].includes(kind)&&hasSave(key)&&!window.confirm(`Start a new ${quick?'quick session':'open world'}? This replaces its existing saved progress, including any active War Rift checkpoint.`))return;
- const loaded=kind==='continue'||kind==='continue-quick'?safeLoad(key):null;if((kind==='continue'||kind==='continue-quick')&&!loaded){updateContinue();return;}
- trackedWarSortie=null;currentSaveKey=key;s=loaded||createGame((0xC0F01D + Math.floor(Math.random()*200000))|0);
+ const loaded=kind==='continue'||kind==='continue-quick'?readSave(key):null;if((kind==='continue'||kind==='continue-quick')&&!loaded){updateContinue();return;}
+ trackedWarSortie=null;currentSaveKey=key;s=loaded?.state||createGame((0xC0F01D + Math.floor(Math.random()*200000))|0);
+ recoverySource=s.checkpointWarning?loaded.raw:null;refreshRecoveryControls();
  if(kind==='drop')enterOperation(s,0);if(kind==='war')enterOperation(s,3);
  active=true;paused=false;commander=false;commanderCompact=false;buildMenu=false;help=false;rpgMenu=false;dialogue=false;lockMenu=false;mapExpanded=false;document.body.classList.remove('commanding','command-compact','map-expanded');keys.clear();input.fire=false;
  setVisibility('menu',false);setVisibility('hud',true);setVisibility('commander-panel',false);setVisibility('build-panel',false);setVisibility('pause-overlay',false);setVisibility('help-overlay',false);setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);
  input.yaw=s.player.yaw;input.pitch=s.player.pitch;lastNotice=s.lastEvent;lastAutoSave=performance.now();bank=0;zoneBefore=s.zone;eraBefore=s.era;healthBefore=s.player.hp;shotBefore=s.player.shots;weakBefore=s.player.weakHits||0;
  if(kind==='new')s.messages.push({id:++s.lastEvent,text:'WELCOME TO THE UNBROKEN FRONTIER. HEAD FOR A RIFT GATE.',type:'command',at:0});
- syncAudio(true);pointer();refresh(true);if(s.checkpointWarning)toast('WAR CHECKPOINT UNAVAILABLE · FRONTIER PROGRESS RECOVERED','warning');
+ syncAudio(true);pointer();refresh(true);if(recoverySource!==null)toast('WAR CHECKPOINT UNAVAILABLE · AUTOSAVE OFF · ORIGINAL KEPT','warning');
 }
 $('rpg-button').onclick=()=>toggleRpg('inventory');$('close-rpg').onclick=()=>toggleRpg(null);$('dialogue-leave').onclick=()=>closeDialogue();for(const b of document.querySelectorAll('[data-rpg-tab]'))b.onclick=()=>toggleRpg(b.dataset.rpgTab);
 $('new-game').onclick=()=>start('new');$('continue-game').onclick=()=>start('continue');$('continue-quick').onclick=()=>start('continue-quick');$('quick-operation').onclick=()=>start('drop');$('quick-war').onclick=()=>start('war');$('fold-target').onclick=()=>{selectEpoch(s);refresh(true);};
 $('pause-button').onclick=()=>togglePause();$('resume').onclick=()=>togglePause(false);$('back-menu').onclick=()=>backToMenu();
 $('abort-operation').onclick=()=>{if(s.zone==='operation'){finishOperation(s,false);const saved=safeSave();toast(saved?'OPERATION ABORTED · PARTIAL SALVAGE SAVED':'OPERATION ENDED · SAVE FAILED · KEEP GAME OPEN','warning');togglePause(false);}};
-$('save-button').onclick=()=>{const saved=safeSave();toast(saved?(s.war?'WAR CHECKPOINT SAVED':'FRONTIER PROGRESS SAVED'):'SAVE FAILED · PREVIOUS SAVE KEPT',saved?'success':'warning');};
+$('save-button').onclick=()=>{
+ const recovering=recoverySource!==null;
+ if(recovering){
+  if(!window.confirm('Replace the unreadable War Rift checkpoint with the recovered progress in this slot? Choose Cancel to keep the original checkpoint unchanged.'))return;
+  try{if(localStorage.getItem(currentSaveKey)!==recoverySource){toast('SAVE CHANGED · RETURN TO TITLE AND REOPEN','warning');return;}}
+  catch{toast('SAVE FAILED · PREVIOUS SAVE KEPT','warning');return;}
+ }
+ const saved=safeSave(recovering);
+ if(saved&&recovering){recoverySource=null;delete s.checkpointWarning;refreshRecoveryControls();}
+ toast(saved?(recovering?'RECOVERED PROGRESS SAVED':s.war?'WAR CHECKPOINT SAVED':'FRONTIER PROGRESS SAVED'):'SAVE FAILED · PREVIOUS SAVE KEPT',saved?'success':'warning');
+};
 $('quality-button').onclick=()=>{quality=quality==='high'?'standard':'high';renderer?.dispose();renderer=new WorldRenderer(canvas,quality);$('quality-button').textContent=`QUALITY: ${quality.toUpperCase()}`;toast('RENDERER QUALITY UPDATED');};
 function syncAudio(userGesture=false){
  if(userGesture&&settings.soundEnabled&&!audio){try{audio=new(window.AudioContext||window.webkitAudioContext)();masterGain=audio.createGain();masterGain.connect(audio.destination);}catch{audio=null;masterGain=null;toast('SOUND NOT AVAILABLE','warning');}}
@@ -143,8 +165,11 @@ arsenalDialog.addEventListener('keydown',e=>{
 $('help-button').onclick=()=>toggleHelp();$('help-close').onclick=()=>toggleHelp(false);
 $('expand-map').onclick=()=>{mapExpanded=!mapExpanded;document.body.classList.toggle('map-expanded',mapExpanded);if(mapExpanded){exitPointer();}else{pointer();}};
 $('close-build').onclick=()=>toggleBuild(false);$('recruit-button').onclick=()=>{if(recruit(s)){sound('build');toggleBuild(false);}else toast('NOT ENOUGH SCRAP OR SQUAD CAP REACHED','warning');};
-function backToMenu(){if(!safeSave()&&!window.confirm('Saving failed. Return to title without saving current progress? Your previous save will remain.'))return;active=false;paused=false;commander=false;commanderCompact=false;document.body.classList.remove('commanding','command-compact');keys.clear();input.fire=false;exitPointer();setVisibility('menu',true);setVisibility('hud',false);setVisibility('pause-overlay',false);setVisibility('commander-panel',false);setVisibility('build-panel',false);setVisibility('help-overlay',false);setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);rpgMenu=false;dialogue=false;lockMenu=false;updateContinue();}
-function togglePause(value=!paused){if(!active)return;if(value){rpgMenu=false;dialogue=false;lockMenu=false;setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);}paused=value;setVisibility('pause-overlay',paused);if(paused){exitPointer();if(!safeSave())toast('SAVE FAILED · PREVIOUS SAVE KEPT','warning');}else pointer();}
+function backToMenu(){
+ if(recoverySource!==null){if(!window.confirm('Return to title without saving the recovered progress? The original checkpoint will remain untouched.'))return;}
+ else if(!safeSave()&&!window.confirm('Saving failed. Return to title without saving current progress? Your previous save will remain.'))return;
+ recoverySource=null;active=false;paused=false;commander=false;commanderCompact=false;document.body.classList.remove('commanding','command-compact');keys.clear();input.fire=false;exitPointer();setVisibility('menu',true);setVisibility('hud',false);setVisibility('pause-overlay',false);setVisibility('commander-panel',false);setVisibility('build-panel',false);setVisibility('help-overlay',false);setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);rpgMenu=false;dialogue=false;lockMenu=false;updateContinue();}
+function togglePause(value=!paused){if(!active)return;if(value){rpgMenu=false;dialogue=false;lockMenu=false;setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);}paused=value;setVisibility('pause-overlay',paused);if(paused){exitPointer();if(recoverySource===null&&!safeSave())toast('SAVE FAILED · PREVIOUS SAVE KEPT','warning');}else pointer();}
 function toggleHelp(value=!help){if(value){rpgMenu=false;dialogue=false;lockMenu=false;setVisibility('rpg-overlay',false);setVisibility('dialogue-overlay',false);setVisibility('lock-overlay',false);}help=value;setVisibility('help-overlay',help);if(help)exitPointer();else pointer();}
 function toggleBuild(value=!buildMenu){if(!active||rpgMenu||dialogue||lockMenu)return;buildMenu=value;setVisibility('build-panel',buildMenu);if(value){exitPointer();refreshBuild();}else pointer();}
 function setCommanderCompact(yes){commanderCompact=!!yes;document.body.classList.toggle('command-compact',commander&&commanderCompact);$('commander-compact').textContent=commanderCompact?'EXPAND COMMAND CONSOLE  [ ` ]':'CLEAR MAP FOR ORDERS  [ ` ]';}
@@ -315,7 +340,7 @@ window.addEventListener('keydown',e=>{
  if(commander&&s.war&&/^Digit[1-5]$/.test(key)&&(e.ctrlKey||e.altKey)){const n=Number(key.slice(-1)),ok=e.ctrlKey?setWarControlGroup(s,n):recallWarControlGroup(s,n);if(ok){toast(e.ctrlKey?`GROUP ${n} STORED`:`GROUP ${n} SELECTED`,'command');refreshWarCommands();}else toast('CONTROL GROUP EMPTY','warning');return;}
  if(key==='KeyB'){toggleBuild();return;}
  if(key==='KeyM'){mapExpanded=!mapExpanded;document.body.classList.toggle('map-expanded',mapExpanded);if(mapExpanded)exitPointer();else pointer();return;}
- if(key==='KeyE'){const before=s.zone,oldEra=s.era;if(interact(s)){sound('notification');if(s.rpg.dialogue)openDialogue(s.rpg.dialogue);else if(s.rpg.boardOpen){s.rpg.boardOpen=false;toggleRpg('bounties');}else if(s.rpg.lockUI){const id=s.rpg.lockUI;s.rpg.lockUI=null;openLock(id);}if(before!==s.zone||oldEra!==s.era){zoneBefore=s.zone;eraBefore=s.era;renderer.terrainOrigin='';renderer.propsKey='';safeSave();}}return;}
+ if(key==='KeyE'){const before=s.zone,oldEra=s.era,claimed=s.bellback?.claimed;if(interact(s)){sound('notification');if(s.rpg.dialogue)openDialogue(s.rpg.dialogue);else if(s.rpg.boardOpen){s.rpg.boardOpen=false;toggleRpg('bounties');}else if(s.rpg.lockUI){const id=s.rpg.lockUI;s.rpg.lockUI=null;openLock(id);}if(!claimed&&s.bellback?.claimed&&!safeSave())toast('BELLBACK COLLECTED · SAVE FROM PAUSE BEFORE CLOSING','warning');if(before!==s.zone||oldEra!==s.era){zoneBefore=s.zone;eraBefore=s.era;renderer.terrainOrigin='';renderer.propsKey='';safeSave();}}return;}
  if(key==='KeyQ'){if(fold(s))sound('fold');else toast('FOLD UNAVAILABLE / 35 FLUX OR COOLDOWN','warning');return;}
  if(key==='KeyZ'){if(echo(s))sound('echo');else toast('ECHO UNAVAILABLE / NEED MEMORY & 28 FLUX','warning');return;}
  if(key==='KeyG'){if(grenade(s))tone(700,.12,'triangle',.075,200);return;}
@@ -395,6 +420,7 @@ function markerBounds(){
  return {left,right,top,bottom:Math.min(h-45,bottom)};
 }
 function refresh(force=false){if(!renderer||!active)return;
+ const trial=echoTrialDirective(s);
  const p=s.player,op=s.operation,o=op?.objectives[op.stage],warGoal=s.war?warObjective(s.war):null,frontier=frontierGuidance(s);
  const set=(id,v)=>{const el=$(id);if(el&&el.textContent!==String(v))el.textContent=String(v);};const progress=(id,v)=>{$(id).style.width=`${clamp(v,0,1)*100}%`;};
  set('level',`LEVEL ${String(p.level).padStart(2,'0')} · ${s.rpg.perkPoints} PERKS`);set('hp-text',`${Math.ceil(p.hp)} / ${p.maxHp}`);progress('hp-bar',p.hp/p.maxHp);
@@ -404,7 +430,12 @@ function refresh(force=false){if(!renderer||!active)return;
  set('zone-label',op?`${ERAS[s.era].name} / ${op.kind==='war'?'ERA WAR':'OPERATION'}`:s.dungeon?`${s.dungeon.name.toUpperCase()} / DUNGEON`:`${ERAS[s.era].name} / FREE ROAM`);set('player-era',ERAS[s.era].period);set('fold-target-name',ERAS[s.temporal.selectedEra].name);set('world-clock',`DAY ${String(Math.floor(s.time/2400)+1).padStart(3,'0')} · ${String(Math.floor(s.dayTime/3600)).padStart(2,'0')}:${String(Math.floor(s.dayTime%3600/60)).padStart(2,'0')}`);
  if(op&&o){set('directive-label','OPERATION DIRECTIVE');set('objective-phase',op.kind==='war'?`ACT ${['foothold','anchors','throne','extraction'].indexOf(s.war.act)+1}/4 · ${CONTRACTS[op.contract].region.toUpperCase()}`:`PHASE ${String(op.stage+1).padStart(2,'0')} / 06 · ${CONTRACTS[op.contract].region.toUpperCase()}`);set('objective-name',warGoal?warGoal.name:o.name);set('objective-description',warGoal?`${warGoal.description}${s.war.expedition?' / OPTIONAL SIDE CRISIS: '+warSummary(s.war).expedition.name:''}`:o.description);
   set('objective-distance',warGoal?`${warGoal.detail} · ${Math.round(dist(p,warGoal))}M` :`${Math.round(dist(p,o))} M TO TARGET · ${Math.round(o.progress)}/${o.target}`);set('mission-time',fmtTime(op.timeLeft));progress('objective-progress-bar',warGoal?warGoal.progress/Math.max(1,warGoal.target):o.progress/o.target);
- }else if(s.dungeon){const d=s.dungeon,stage=d.bossDead?(d.looted?'COMPLETE':'CLAIM THE RELIC'):d.sigils.every(Boolean)?'SLAY THE GUARDIAN':'ACTIVATE THE TWO RELAYS';set('directive-label','DUNGEON QUEST');set('objective-phase',`DEEP VAULT / ${DUNGEON_BY_ID[d.id].name}`);set('objective-name',stage);set('objective-description',DUNGEON_BY_ID[d.id].subtitle);set('objective-distance',`${d.sigils.filter(Boolean).length}/2 RELAYS · ${d.bossDead?'BOSS DOWN':'GUARDIAN SEALED'}`);set('mission-time','NO TIME LIMIT');progress('objective-progress-bar',(d.sigils.filter(Boolean).length+(d.bossDead?1:0)+(d.looted?1:0))/4);
+ }else if(trial){
+  set('directive-label','OPTIONAL TRIAL');set('objective-phase','MIRROR MAW / THE FOURTH ECHO');
+  set('objective-name',trial.title);set('objective-description',trial.hint);
+  set('objective-distance',`${Math.round(dist(p,trial.goal))}M TO TARGET`);
+  progress('objective-progress-bar',trial.progress);
+  }else if(s.dungeon){const d=s.dungeon,returning=vaultReadyToLeave(d),stage=d.bossDead?(returning?'RETURN THROUGH EITHER EXIT':'CLAIM THE RELIC'):d.sigils.every(Boolean)?'SLAY THE GUARDIAN':'ACTIVATE THE TWO RELAYS';set('directive-label','DUNGEON QUEST');set('objective-phase',`DEEP VAULT / ${DUNGEON_BY_ID[d.id].name}`);set('objective-name',stage);set('objective-description',returning&&d.revisited?'Leave alive to complete a matching radiant bounty. This vault’s first-clear relic was already claimed.':DUNGEON_BY_ID[d.id].subtitle);set('objective-distance',`${d.sigils.filter(Boolean).length}/2 RELAYS · ${d.bossDead?'BOSS DOWN':'GUARDIAN SEALED'}`);set('mission-time','NO TIME LIMIT');progress('objective-progress-bar',(d.sigils.filter(Boolean).length+(d.bossDead?1:0)+(returning?1:0))/4);
  }else{const quest=guidanceQuest(s),qState=quest&&s.rpg.quests[quest.id];set('directive-label',`${ERAS[s.era].period} / SURVIVAL`);set('objective-phase',quest?(qState.status==='ready'?'RETURN TO · ':'ACTIVE QUEST · ')+NPC_BY_ID[quest.giver].name:'00 // FRONTIER · NO TIME LIMIT');set('objective-name',quest?quest.name:s.rpg.bounty?.status==='active'?s.rpg.bounty.name:'HISTORY BELONGS TO THE BOLD');set('objective-description',quest?`${quest.description} ${frontier?.hint||''}`:s.rpg.bounty?.status==='active'?'Radiant bounty: '+s.rpg.bounty.goal.type+' '+s.rpg.bounty.goal.target+' ×'+s.rpg.bounty.goal.count:(frontier?.hint||'Speak to settlers, enter ancient vaults, forge equipment, discover landmarks and command your troops. Press L for quests.'));set('objective-distance',quest?(qState.status==='ready'?'READY TO CLAIM REWARD':`${qState.progress}/${quest.goal.count} ${quest.goal.type.toUpperCase()}`):s.rpg.bounty?.status==='active'?`${s.rpg.bounty.progress}/${s.rpg.bounty.goal.count} BOUNTY`:`${s.rpg.discovered.length}/${LANDMARKS.length} PLACES FOUND`);set('mission-time',quest?(qState.status==='ready'?'QUEST READY':'QUEST TRACKED'):s.rpg.bounty?.status==='active'?'BOUNTY ACTIVE':'FREE ROAM');progress('objective-progress-bar',quest?qState.progress/quest.goal.count:0);}
  const w=WEAPONS[p.weapon];set('weapon-name',w.name);set('weapon-type',({rifle:'ASSAULT RIFLE',scatter:'BREACH SHOTGUN',rail:'ARC MARKSMAN',smg:'AUTOMATIC SMG',cryo:'CRYO CASTER',launcher:'HEAVY LAUNCHER'})[p.weapon]);set('ammo',p.ammo[p.weapon]);set('reserve',p.reserve[p.weapon]);set('reload-status',p.reload>0?`RELOADING · ${p.reload.toFixed(1)}s`:p.ammo[p.weapon]===0?(p.reserve[p.weapon]>0?'EMPTY · R TO RELOAD':'OUT OF AMMO · SWITCH WEAPON'):p.ammo[p.weapon]<=Math.ceil(w.mag*.2)?'LOW AMMO · R TO RELOAD':'1–3 CORE · WHEEL ALL SIX');
  setVisibility('reload-meter',p.reload>0);$('reload-meter').value=reloadProgress(p);$('reload-meter').setAttribute('aria-valuetext',p.reload>0?`${p.reload.toFixed(1)} seconds remaining`:'Reload complete');$('ammo').classList.toggle('ammo-low',p.ammo[p.weapon]<=Math.ceil(w.mag*.2));$('arsenal-button').disabled=commander;refreshAbilities();set('grenade-count',`×${p.grenades.toString().padStart(2,'0')}`);
@@ -414,12 +445,15 @@ function refresh(force=false){if(!renderer||!active)return;
  set('squad-total',s.war?`${s.war.army.reduce((n,b)=>n+b.count,0)} ARMY + ${s.squad.length} GUARD`:`${String(s.squad.length).padStart(2,'0')} TROOPS`);if(s.war)refreshWarCommands();const squad=$('squad-list');squad.textContent='';for(const u of s.squad.slice(0,8)){
   const el=document.createElement('div');el.className='squad-row';const icon=document.createElement('div');icon.className='squad-avatar';icon.textContent=u.role==='MEDIC'?'✚':u.role==='HEAVY'?'⬢':'◈';const content=document.createElement('div');content.className='squad-text';const b=document.createElement('strong');b.textContent=`${u.role} / ${String(u.id).padStart(2,'0')}`;const label=document.createElement('span');label.textContent=u.order.toUpperCase();content.append(b,label);const bar=document.createElement('div');bar.className='squad-health';const fill=document.createElement('div');fill.style.width=`${100*clamp(u.hp/u.maxHp,0,1)}%`;bar.append(fill);el.append(icon,content,bar);squad.append(el);
  }
- const near=nearestInteraction(s);setVisibility('interaction',!!near&&!commander);if(near)set('interaction-title',near.label);
+ const near=nearestInteraction(s),climb=near?.type!=='bellback'&&bellbackPrompt(s);
+ setVisibility('interaction',!!(near||climb)&&!commander);
+ if(near||climb){set('interaction-key',near?'E':'SPACE');set('interaction-title',near?.label||climb);
+  set('interaction-detail',near&&climb?`SPACE · ${climb}`:'HOLD THE LINE');}
  const sortieGoal=trackedWarSortie&&trackedWarSortie===s.war?.expedition?trackedWarSortie:null;
- const goal=sortieGoal||warGoal||(op?o:s.dungeon?(s.dungeon.looted?{x:-12,z:6}:!s.dungeon.sigils[0]?{x:-11,z:-43}:!s.dungeon.sigils[1]?{x:12,z:-83}:s.dungeon.bossDead?{x:7,z:-137}:{x:0,z:-129}):frontier?.goal);
+ const goal=sortieGoal||warGoal||trial?.goal||(op?o:s.dungeon?(vaultReadyToLeave(s.dungeon)?(dist(p,{x:-12,z:6})<dist(p,{x:0,z:-147})?{x:-12,z:6}:{x:0,z:-147}):!s.dungeon.sigils[0]?{x:-11,z:-43}:!s.dungeon.sigils[1]?{x:12,z:-83}:s.dungeon.bossDead?{x:7,z:-137}:{x:0,z:-129}):frontier?.goal);
  setVisibility('objective-marker',!!goal);
  if(goal){const y=terrainHeight(goal.x,goal.z,s.seed,s.zone)+10,project=renderer.project([goal.x,y,goal.z]);const marker=$('objective-marker'),placement=markerPlacement(p,goal,project,window.innerWidth,window.innerHeight,markerBounds());
-  set('marker-title',sortieGoal?`OPTIONAL / ${warSummary(s.war).expedition.name}`:warGoal?warGoal.name:op?'OPERATION TARGET':s.dungeon?'VAULT OBJECTIVE':goal.title);
+  set('marker-title',trial?.goal.title||(sortieGoal?`OPTIONAL / ${warSummary(s.war).expedition.name}`:warGoal?warGoal.name:op?'OPERATION TARGET':s.dungeon?'VAULT OBJECTIVE':goal.title));
   set('marker-icon',placement.icon);set('marker-distance',`${Math.round(dist(p,goal))}m${placement.direction?' · '+placement.direction:''}`);
   marker.classList.toggle('offscreen',placement.offscreen);marker.style.left=`${placement.x}px`;marker.style.top=`${placement.y}px`;
  }
@@ -436,7 +470,9 @@ function drawMinimap(){const c=$('minimap'),ctx=c.getContext('2d'),p=s.player,w=
   for(let zi=0;zi<26;zi++)for(let xi=0;xi<26;xi++){const x=p.x-range+(xi+.5)*range*2/26,z=p.z-range+(zi+.5)*range*2/26,b=biomeAt(x,z,s.seed,s.zone),y=terrainHeight(x,z,s.seed,s.zone),a=clamp((y+10)/35,0,1);ctx.fillStyle=s.zone==='operation'?`rgb(${Math.round(25+a*25)},${Math.round(32+a*9)},${Math.round(46+a*12)})`:b==='wastes'?`rgb(${Math.round(56+a*22)},${Math.round(57+a*22)},${Math.round(48+a*20)})`:b==='marsh'?'#1e4047':b==='bloom'?'#1a5344':'#213e43';ctx.fillRect(xi*w/26,zi*h/26,w/26+1,h/26+1);}
   ctx.strokeStyle='#7adab220';ctx.lineWidth=1;for(let i=0;i<=10;i++){const n=i*w/10;ctx.beginPath();ctx.moveTo(n,0);ctx.lineTo(n,h);ctx.moveTo(0,n);ctx.lineTo(w,n);ctx.stroke();}
   const mark=(x,z,color,r=4,shape='dot')=>{if(Math.abs(x-p.x)>range||Math.abs(z-p.z)>range)return;ctx.fillStyle=color;ctx.strokeStyle=color;ctx.beginPath();if(shape==='ring'){ctx.arc(px(x),py(z),r,0,Math.PI*2);ctx.lineWidth=2;ctx.stroke();}else if(shape==='square'){ctx.fillRect(px(x)-r,py(z)-r,r*2,r*2);}else{ctx.arc(px(x),py(z),r,0,Math.PI*2);ctx.fill();}};
-  if(s.zone==='frontier'){for(const lock of (s.era==='medieval'?LOCKBOXES:[]))if(!s.rpg.opened.includes('lock:'+lock.id))mark(lock.x,lock.z,'#f5ad65',4,'square');mark(3,14,'#f2cb85',5,'square');for(const gate of worldGates(s))mark(gate.x,gate.z,'#ae8bf5',5,'ring');for(const gate of availableRifts(s.era))mark(gate.x,gate.z,ERAS[gate.era].accent,6,'ring');for(const l of (s.era==='medieval'?LANDMARKS:[]))if(s.rpg.discovered.includes(l.id))mark(l.x,l.z,l.kind==='dungeon'?'#cf9cff':l.kind==='cache'?'#efc278':'#98e7cc',l.kind==='dungeon'?6:4,'ring');for(const npc of (s.era==='medieval'?NPCS:[]))if(!s.rpg.companions.includes(npc.id))mark(npc.x,npc.z,'#e8efe5',2);}if(s.dungeon){for(const [i,point]of [{x:-11,z:-43},{x:12,z:-83}].entries())mark(point.x,point.z,s.dungeon.sigils[i]?'#69ffcb':'#e4aaff',5,'ring');mark(0,-129,'#ff8a92',7,'ring');mark(-12,6,'#f0cb8c',5,'ring');mark(7,-137,'#eac485',5,'square');}
+  if(s.zone==='frontier'){for(const lock of (s.era==='medieval'?LOCKBOXES:[]))if(!s.rpg.opened.includes('lock:'+lock.id))mark(lock.x,lock.z,'#f5ad65',4,'square');mark(3,14,'#f2cb85',5,'square');for(const gate of worldGates(s))mark(gate.x,gate.z,'#ae8bf5',5,'ring');for(const gate of availableRifts(s.era))mark(gate.x,gate.z,ERAS[gate.era].accent,6,'ring');for(const l of (s.era==='medieval'?LANDMARKS:[]))if(s.rpg.discovered.includes(l.id))mark(l.x,l.z,l.kind==='dungeon'?'#cf9cff':l.kind==='cache'?'#efc278':'#98e7cc',l.kind==='dungeon'?6:4,'ring');for(const npc of (s.era==='medieval'?NPCS:[]))if(!s.rpg.companions.includes(npc.id))mark(npc.x,npc.z,'#e8efe5',2);}if(s.dungeon){for(const [i,point]of [{x:-11,z:-43},{x:12,z:-83}].entries())mark(point.x,point.z,s.dungeon.sigils[i]?'#69ffcb':'#e4aaff',5,'ring');mark(0,-129,'#ff8a92',7,'ring');mark(-12,6,'#f0cb8c',5,'ring');if(!s.dungeon.revisited&&!s.dungeon.looted)mark(7,-137,'#eac485',5,'square');}
+  if(s.bellbackPose&&s.bellback?.seen&&!s.bellback.claimed)mark(s.bellbackPose.x,s.bellbackPose.z,'#f5c484',7,'ring');
+  if(echoTrialLensReady(s))mark(ECHO_TRIAL.x,ECHO_TRIAL.z,'#f5c484',5,'ring');
   if(s.operation){for(const o of [s.operation.objectives[s.operation.stage]])mark(o.x,o.z,'#ffd18b',6,'ring');for(const n of s.operation.pylons)mark(n.x,n.z,n.active?'#8cffe2':'#d4bb76',4,'square');}
   if(s.war){for(const b of s.war.army)mark(b.x,b.z,'#4af6c2',4,'square');for(const b of s.war.enemyArmy)mark(b.x,b.z,'#f77883',4,'square');for(const node of s.war.nodes)mark(node.x,node.z,node.owner==='ally'?'#55e5bf':'#ffcd87',6,'ring');for(const shield of s.war.anchors)if(shield.hp>0)mark(shield.x,shield.z,'#de80f3',6,'square');mark(s.war.base.x,s.war.base.z,'#55e5bf',8,'square');mark(s.war.enemyBase.x,s.war.enemyBase.z,'#f77883',8,'square');if(s.war.expedition)mark(s.war.expedition.x,s.war.expedition.z,'#ffdb88',8,'ring');if(s.war.act==='extraction')mark(s.war.extraction.x,s.war.extraction.z,'#ffd28a',9,'ring');for(const drop of s.war.supportDrops)mark(drop.x,drop.z,drop.id==='epoch_lance'?'#fc8b94':'#9affcc',7,'ring');}for(const b of s.buildings)if(b.zone===s.zone&&(s.zone!=='frontier'||(b.era||'medieval')===s.era))mark(b.x,b.z,'#a5ddc2',4,'square');for(const enemy of s.enemies)if(enemy.hp>0)mark(enemy.x,enemy.z,'#f77883',enemy.kind==='titan'?7:3);for(const u of s.squad)mark(u.x,u.z,'#5fecdc',4);
   const guide=frontierGuidance(s)?.goal;if(guide)mark(guide.x,guide.z,'#ffe5a2',9,'ring');
@@ -456,7 +492,7 @@ function frame(now){const dt=Math.min(.06,(now-last)/1000||.016);last=now;
  }
  if(active&&now-lastUi>140){lastUi=now;refresh();}
  if(active&&now-lastMini>350){lastMini=now;drawMinimap();}
- if(active&&(s.zone==='frontier'||s.war)&&now-lastAutoSave>30000){if(!safeSave())toast('AUTOSAVE FAILED · PREVIOUS SAVE KEPT','warning');lastAutoSave=now;}
+ if(active&&recoverySource===null&&(s.zone==='frontier'||s.war)&&now-lastAutoSave>30000){if(!safeSave())toast('AUTOSAVE FAILED · PREVIOUS SAVE KEPT','warning');lastAutoSave=now;}
  for(const item of [...noteEls])if(now-item.at>4600){item.item.remove();noteEls.splice(noteEls.indexOf(item),1);}
  requestAnimationFrame(frame);
 }

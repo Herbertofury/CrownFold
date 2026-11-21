@@ -52,7 +52,33 @@ Pause, choose **Save Progress Now**, or return to the title to checkpoint a runn
 
 Checkpoints retain formations, individual casualties, movement orders, control groups, production queues, pending supports, cover damage, supplies, active optional sorties, extraction progress, player ammunition and cooldowns, Fold fields, and your original return location/era. Rust validates the objective state and chooses the next siege act/outcome. Loading itself grants no rewards.
 
-The existing frontier save format remains readable. If its optional war checkpoint is damaged or unsupported, the game restores frontier progress and shows a warning. A failed storage write leaves the previous save untouched and warns you to keep the game open. Returning to the title after a failed write requires choosing to leave without saving. Browser storage is local, can be cleared by the browser, and is not cloud sync or an external backup. Classic shooter missions and dungeons do not yet resume mid-mission.
+The existing frontier save format remains readable. If a War Rift checkpoint is damaged or unsupported, choose **Recover World Frontier** or **Recover Quick Frontier**. The original bytes stay in their slot; autosave, pausing, and leaving never replace them. When you are ready to keep the recovered progress, open Pause and choose **Save Recovered Progress**, then confirm the replacement. If the slot has already changed since you opened it, return to the title and reopen it instead. A failed storage write leaves the previous save untouched and warns you to keep the game open. Returning to the title after a failed write requires choosing to leave without saving. Browser storage is local, can be cleared by the browser, and is not cloud sync or an external backup. Classic shooter missions and dungeons do not yet resume mid-mission.
+
+## The Roaming Bellback
+
+Ask **Sable** about the enormous tracks in the Crownless March. The Bellback
+walks a route selected for your world seed, between two existing biomes. Find
+the moving gold platform, use **Space** to jump onto its lower ledge, then
+jump inward to the raised harness. Move with the creature while airborne.
+Use **E** on the harness to collect **28 Ore, 45 Flux and 180 XP**, once per
+world. You can use the materials for spells, buildings and crafting.
+
+The Bellback keeps moving if you step away or ignore it. The route and awarded
+salvage survive a save/reopen; a rider safely returns to the ground on load.
+This optional encounter does not replace named landmarks, quests or bounty
+progress. Normal browser-local save rules apply.
+
+## The Fourth Echo
+
+Turn in **The Three Echoes**, then ask Lyra about what still answers in the
+Mirror Maw. Revisit the vault, defeat its normal guardian, and use **E** at
+the gold lens on the east side of the chamber to choose the optional trial.
+Fight the sentinel, answer the lens again, then survive the two-sided pincer.
+Leave alive through either exit to bank **8 Chronicle Insight and 35 Flux**
+once. Press **C** to use Insight for permanent Chronicle upgrades. Either
+exit still works if you decline or retreat. Death or closing the game
+inside the vault does not bank the trial; you can retry later. Normal relic,
+quest and bounty progress are unchanged.
 
 ## Player comfort settings
 

@@ -1,3 +1,4 @@
+import {ECHO_TRIAL,echoTrialLensReady} from './echo-trial.mjs';
 import {terrainHeight, biomeAt, propsInChunk, worldGates, CONTRACTS, ENEMIES, STRUCTURES, clamp, dist, hash, TAU} from './sim.mjs';
 import {LANDMARKS,LOCKBOXES,NPCS,DUNGEON_BY_ID} from './rpg.mjs';
 import {ERAS,eraSites,availableRifts,facetAt} from './temporal.mjs';
@@ -118,6 +119,24 @@ export class WorldRenderer {
    else if(kind==='pylon'){this.add('cylinder',x,y+1,z,4,2,4,palette.ash);this.add('cylinder',x,y+5,z,1.2,8,1.2,palette.metal);this.add('gem',x,y+10,z,2.1,4,2.1,palette.mint,t*.28,0,.8);}
    else if(kind==='extract'){this.add('ring',x,y+.4,z,12,.45,12,palette.amber,t*.4,0,.8);for(let i=0;i<8;i++){const a=i*TAU/8;this.add('cube',x+Math.sin(a)*6,y+.32,z+Math.cos(a)*6,.7,.25,2.6,palette.amber,a,.0,.7);}this.add('gem',x,y+3.6,z,.9,6,.9,palette.mint,t*.3,0,.8);}
  }
+ drawBellback(s){const m=s.bellbackPose;if(!m||dist(m,this.focus||s.player)>this.radius-12)return;
+  const {x,y,z,angle,deck}=m,t=s.time*5;
+  this.add('gem',x,y+4.6,z,8,4.4,11,palette.ash,angle,0,.25);
+  this.add('cube',x,y+5.8,z,4.8,1.55,7,palette.metal,angle);
+  for(const end of [-1,1]){
+   const headX=x+Math.sin(angle)*5.3*end,headZ=z-Math.cos(angle)*5.3*end;
+   this.add('gem',headX,y+5.2,headZ,3.1,3.3,3.7,palette.mint,angle,0,.65);
+  }
+  for(const side of [-1,1])for(const end of [-1,1]){
+   const x0=x+Math.cos(angle)*side*2.9+Math.sin(angle)*end*2.8,
+     z0=z+Math.sin(angle)*side*2.9-Math.cos(angle)*end*2.8,gait=Math.sin(t+end*side);
+   this.beam([x0,y+4,z0],[x0+Math.sin(angle)*gait,y+.2+Math.max(0,gait)*.56,z0-Math.cos(angle)*gait],1.3,palette.metal,.2);
+  }
+  this.add('cylinder',deck.x,deck.step-.15,deck.z,4.8,.3,4.8,palette.metal);
+  this.add('ring',deck.x,deck.step+.06,deck.z,4.7,.11,4.7,palette.amber,0,0,.9);
+  this.add('cylinder',deck.x,deck.harness-.12,deck.z,1.90,.24,1.90,palette.amber);
+  if(!s.bellback.claimed)this.add('gem',deck.x,deck.harness+1.05,deck.z,.62,1.18,.62,palette.mint,s.time*.4,0,1);
+ }
  drawDungeon(s){const d=s.dungeon;if(!d)return;const y=-5,phase=s.time,theme=d.id==='glass'?palette.purple:d.id==='roots'?palette.mint:palette.water;
   // Thirty-something physical walls form three rooms and gated hallways. The movement solver respects the cross-gates.
   this.add('cube',0,y-.9,-72,43,1.6,166,palette.ash);
@@ -130,6 +149,12 @@ export class WorldRenderer {
   }
   this.add('cylinder',0,y+.5,-129,10.5,.9,10.5,palette.ash);this.add('ring',0,y+.65,-129,12,.4,12,theme,phase*.5,0,.8);
   this.add('cube',7,y+.8,-137,3,1.8,2.7,palette.ash);this.add('gem',7,y+2,-137,2.2,2.6,2.2,d.bossDead?palette.amber:palette.purple,phase*.4,0,.85);
+  if(echoTrialLensReady(s)){
+   const {x,z}=ECHO_TRIAL;
+   this.add('cylinder',x,y+.4,z,3,.8,3,palette.ash);
+   this.add('ring',x,y+.7,z,4.4,.35,4.4,palette.amber,phase*.45,0,.85);
+   this.add('gem',x,y+2.6,z,1.3,3.8,1.3,palette.amber,phase*.22,0,.9);
+  }
   for(const portal of [{x:-12,z:6},{x:0,z:-147}]){const x=portal.x,z=portal.z;this.add('ring',x,y+.15,z,5,.45,5,palette.amber,phase*.4,0,.7);this.add('gem',x,y+2.6,z,.5,4,.5,palette.mint,phase*.25,0,.8);}
  }
  landmark(place,s){const y=terrainHeight(place.x,place.z,s.seed,s.zone),x=place.x,z=place.z,t=s.time;
@@ -188,6 +213,7 @@ export class WorldRenderer {
     for(const gate of worldGates(s))if(dist(gate,p)<this.radius-16)this.monument(gate.x,gate.z,'gate',s);
     for(const gate of availableRifts(s.era))if(dist(gate,p)<this.radius-16){const gy=terrainHeight(gate.x,gate.z,s.seed,s.zone),c=ERAS[gate.era].terrain;this.add('ring',gate.x,gy+4,gate.z,7,1.2,7,c,s.time*.3,Math.PI/2,.85);this.add('cylinder',gate.x-4,gy+3,gate.z,1,7,1,palette.ash);this.add('cylinder',gate.x+4,gy+3,gate.z,1,7,1,palette.ash);this.add('gem',gate.x,gy+4.4,gate.z,1.8,4.9,1.8,c,s.time*.44,0,.92);}
     for(let i=0;i<5;i++){const a=i*TAU/5+.2,x=Math.sin(a)*17,z=Math.cos(a)*17;this.add('cube',x,terrainHeight(x,z,s.seed,s.zone)+1,z,2.5,2,3.2,palette.metal,a);}
+    this.drawBellback(s);
     if(s.era==='medieval')for(const place of LANDMARKS)if(place.id!=='home'&&dist(place,p)<this.radius-8)this.landmark(place,s);
     for(const place of eraSites(s.era))if(dist(place,p)<this.radius-8){const gy=terrainHeight(place.x,place.z,s.seed,s.zone),c=ERAS[s.era].terrain;this.add('cylinder',place.x,gy+.6,place.z,9,1.2,9,palette.ash);for(let k=0;k<5;k++){const a=k*TAU/5;this.add('cylinder',place.x+Math.sin(a)*5,gy+2.8,place.z+Math.cos(a)*5,1.1,5.1,1.1,c);}this.add('ring',place.x,gy+5.5,place.z,7,.4,7,c,s.time*.35,0,.4);if(!s.temporal.worldCaches.includes(place.id))this.add('gem',place.x,gy+6.4,place.z,2.2,3,2.2,palette.amber,s.time*.4,0,.8);}
     const by=terrainHeight(3,14,s.seed,s.zone);this.add('cube',3,by+1.8,14,6,3.6,.5,palette.wood);this.add('cube',3,by+3.9,14,7,.9,1.2,palette.metal);this.add('gem',3,by+4.9,14,.7,1.0,.7,palette.amber,0,0,.7);
