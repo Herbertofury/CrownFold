@@ -256,7 +256,7 @@ function advance(s){const op=s.operation;if(!op)return;op.stage++;if(op.stage>=6
 export function finishOperation(s,success=true){const op=s.operation;if(!op)return false;const p=s.player;const earned=success?100+op.difficulty*60+Math.round(op.timeLeft/30):25;
   const siegeReport=bellSiegeReport(s.war,success);if(siegeReport){s.temporal.chronicleLog.push(siegeReport);s.temporal.chronicleLog=s.temporal.chronicleLog.slice(-40);emit(s,'ELEVEN BELLS FIELD REPORT SAVED / C TO READ THE CHRONICLE','command');}
   s.inventory.scrap+=earned;s.inventory.ore+=success?24:7;s.inventory.flux+=success?70:18;if(success&&op.kind==='war'){const id=CONTRACTS[op.contract].id;if(id&&!s.temporal.wonCampaigns.includes(id)){s.temporal.wonCampaigns.push(id);s.temporal.insight+=18;s.temporal.chronicleLog.push(`Liberated ${CONTRACTS[op.contract].region} from the ${ERAS[op.era||s.era].name}`);}}if(success){s.inventory.medkit+=2;s.stats.missions++;rpgEvent(s,'operation',String(op.contract));grantXP(s,230+op.difficulty*45);s.rpg.coins+=130+op.difficulty*30;}s.temporal.chronicleLog=s.temporal.chronicleLog.slice(-40);s.zone='frontier';s.era=s.temporal.returnEra||'medieval';s.seed=epochSeed(s.temporal.baseSeed,s.era);p.x=s.lastZonePos.x+3;p.z=s.lastZonePos.z+3;p.y=terrainHeight(p.x,p.z,s.seed,'frontier');p.memories=[];p.hp=Math.max(45,p.hp);p.shield=p.maxShield;
-  s.enemies=[];s.projectiles=[];s.hostileShots=[];s.buildings=s.buildings.filter(b=>b.zone==='frontier');s.spawnTimer=6;for(const u of s.squad){u.x=p.x+2;u.z=p.z+3;u.order='follow';}
+  s.enemies=[];s.projectiles=[];s.hostileShots=[];s.buildings=s.buildings.filter(b=>b.zone==='frontier');s.spawnTimer=6;for(const u of s.squad){u.x=p.x+2;u.z=p.z+3;u.y=terrainHeight(u.x,u.z,s.seed,'frontier');u.order='follow';}
   emit(s,success?`OPERATION SUCCESS / +${earned} SCRAP / RELIC SECURED`:`OPERATION ABORTED / +${earned} SALVAGE`,success?'success':'warning');s.operation=null;s.war=null;return true;
 }
 function updateOperation(s,dt){const op=s.operation;if(!op)return;op.timeElapsed+=dt;op.timeLeft-=dt;if(op.timeLeft<=0){finishOperation(s,false);return;}if(op.kind==='war'){if(s.war){const outcome=stepWarfront(s,dt),objective=warObjective(s.war);Object.assign(op.objectives[0],objective);if(outcome){finishOperation(s,outcome==='ally');}}return;}
@@ -365,7 +365,16 @@ export function stepGame(s,input={},dt=1/30){if(!s||dt<=0)return s;dt=Math.min(d
   s.buildings=s.buildings.filter(b=>b.hp>0);
   spawnDirector(s,dt);return s;
 }
-export function serialize(s){return JSON.stringify({warCheckpoint:makeWarCheckpoint(s),rpg:{...s.rpg,dialogue:null,status:{cloak:0,rally:0},abilityCooldowns:{}},version:s.version,seed:s.zone==='operation'?epochSeed(s.temporal.baseSeed,s.temporal.returnEra):s.seed,era:s.zone==='operation'?s.temporal.returnEra:s.era,temporal:s.temporal,dayTime:s.dayTime,weather:s.weather,inventory:s.inventory,player:{...s.player,x:s.zone!=='frontier'?s.lastZonePos.x:s.player.x,z:s.zone!=='frontier'?s.lastZonePos.z:s.player.z,memories:[]},squad:s.zone!=='frontier'?s.squad.map((u,i)=>({...u,x:s.lastZonePos.x+(i-2)*2,z:s.lastZonePos.z+3+i%2,y:terrainHeight(s.lastZonePos.x+(i-2)*2,s.lastZonePos.z+3+i%2,s.seed,'frontier'),order:'follow'})):s.squad,buildings:s.buildings.filter(b=>b.zone==='frontier'),harvested:s.harvested,cleared:s.cleared,stats:s.stats,nextId:s.nextId});}
+export function serialize(s){
+  const era=s.zone==='operation'?s.temporal.returnEra:s.era;
+  const seed=s.zone==='operation'?epochSeed(s.temporal.baseSeed,era):s.seed;
+  const frontier=s.zone==='frontier';
+  const squad=frontier?s.squad:s.squad.map((u,i)=>{
+    const x=s.lastZonePos.x+(i-2)*2,z=s.lastZonePos.z+3+i%2;
+    return {...u,x,z,y:terrainHeight(x,z,seed,'frontier'),order:'follow'};
+  });
+  return JSON.stringify({warCheckpoint:makeWarCheckpoint(s),rpg:{...s.rpg,dialogue:null,status:{cloak:0,rally:0},abilityCooldowns:{}},version:s.version,seed,era,temporal:s.temporal,dayTime:s.dayTime,weather:s.weather,inventory:s.inventory,player:{...s.player,x:frontier?s.player.x:s.lastZonePos.x,z:frontier?s.player.z:s.lastZonePos.z,memories:[]},squad,buildings:s.buildings.filter(b=>b.zone==='frontier'),harvested:s.harvested,cleared:s.cleared,stats:s.stats,nextId:s.nextId});
+}
 export function restore(raw){let data;try{data=typeof raw==='string'?JSON.parse(raw):raw;}catch{return null;}if(!data||data.version!==1||!Number.isFinite(data.seed)||!data.inventory||!data.player||!Array.isArray(data.buildings)||!Array.isArray(data.squad))return null;
   const s=createGame(data.seed);s.temporal=migrateTemporal(data.temporal,data.seed);s.era=validEra(data.era)?data.era:'medieval';s.seed=epochSeed(s.temporal.baseSeed,s.era);s.rpg=restoreRPG(data.rpg,s);s.dayTime=Number.isFinite(data.dayTime)?data.dayTime:s.dayTime;
   if(data.weather==='clear'||data.weather==='rain'||data.weather==='storm')s.weather=data.weather;
@@ -381,5 +390,9 @@ export function restore(raw){let data;try{data=typeof raw==='string'?JSON.parse(
   if(data.warCheckpoint){
     if(restoreWarCheckpoint(s,data.warCheckpoint)){emit(s,'WAR CHECKPOINT RESTORED / THE SIEGE CONTINUES','success');return s;}
     s.checkpointWarning=true;emit(s,'WAR CHECKPOINT UNAVAILABLE / FRONTIER PROGRESS RECOVERED','warning');
-  }else emit(s,'SURVIVAL SAVE RESTORED','success');return s;
+  }else emit(s,'SURVIVAL SAVE RESTORED','success');
+  // Older frontier records may store a formation height sampled in another era.
+  // A valid live checkpoint returned above retains the original combat coordinates.
+  for(const u of s.squad)u.y=terrainHeight(u.x,u.z,s.seed,'frontier');
+  return s;
 }
