@@ -4,7 +4,7 @@ from playwright.sync_api import sync_playwright
 import json,os,traceback
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'test-results';OUT.mkdir(exist_ok=True)
-checks={};errors=[];events=[]
+checks={};errors=[];events=[];box_evidence={}
 with sync_playwright() as pw:
  browser=pw.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH'),args=['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--enable-webgl'])
  page=browser.new_page(viewport={'width':1600,'height':900},device_scale_factor=1)
@@ -28,7 +28,7 @@ with sync_playwright() as pw:
   page.wait_for_function('window.__riftfront.active && !!window.__riftfront.state.war')
   assert page.url==offline_url, 'Quick War left the offline game document'
   page.keyboard.press('Tab')
-  page.wait_for_function('window.__riftfront.commander && !!window.__riftfront.renderer.vp')
+  page.wait_for_function('window.__riftfront.commander && window.__riftfront.renderer.focus===window.__riftfront.renderer.tactical && !!window.__riftfront.renderer.ivp')
   before=page.evaluate('''()=>({player:[window.__riftfront.state.player.x,window.__riftfront.state.player.z],cam:[window.__riftfront.renderer.tactical.x,window.__riftfront.renderer.tactical.z],zoom:window.__riftfront.renderer.tactical.zoom})''')
   page.keyboard.down('d')
   try:
@@ -38,8 +38,11 @@ with sync_playwright() as pw:
   after=page.evaluate('''()=>({player:[window.__riftfront.state.player.x,window.__riftfront.state.player.z],cam:[window.__riftfront.renderer.tactical.x,window.__riftfront.renderer.tactical.z],zoom:window.__riftfront.renderer.tactical.zoom})''')
   checks['camera_pan']=after['cam'][0]>before['cam'][0]+8
   checks['player_did_not_move']=max(abs(after['player'][j]-before['player'][j]) for j in (0,1))<.04
+  before_zoom_matrix=page.evaluate('Array.from(window.__riftfront.renderer.vp)')
   page.mouse.move(1080,420);page.mouse.wheel(0,-250)
   page.wait_for_function('z=>window.__riftfront.renderer.tactical.zoom<z',arg=before['zoom'])
+  page.wait_for_function('matrix=>window.__riftfront.renderer.vp.some((v,i)=>v!==matrix[i])',
+                         arg=before_zoom_matrix)
   zoom=page.evaluate('window.__riftfront.renderer.tactical.zoom')
   checks['zoom_changes']=zoom<before['zoom']
   # Click two distinct groups in the roster, adding the second with Shift.
@@ -71,32 +74,44 @@ with sync_playwright() as pw:
   checks['right_click_multi_order']=(click_target is not None and len(orders)==2
    and all(o['order']=='move' and abs(o['x']-click_target['x'])<.5
            and abs(o['z']-click_target['z'])<.5 for o in orders))
-  # Pick an unselected friendly unit whose projected drag endpoints are
-  # hit-testable, and whose ground footprint actually contains the unit.
-  target=page.evaluate("""()=>{
+  # A fresh Quick War has only two friendly battalions, both selected by
+  # control-group recall. Use the roster to leave a real unselected target.
+  page.keyboard.press('Backquote')
+  roster.nth(1).click()
+  page.wait_for_function('window.__riftfront.state.war.selectedBattalionIds.length===1')
+  page.keyboard.press('Backquote')
+  box_evidence['before']=page.evaluate('window.__riftfront.state.war.selectedBattalionIds')
+  target=page.evaluate("""async()=>{
+   const {terrainHeight}=await import('riftfront-sim');
    const {renderer:r,state:s}=window.__riftfront,canvas=document.querySelector('#world');
    const rect=canvas.getBoundingClientRect();
+   const project=(x,z)=>r.project([x,terrainHeight(x,z,s.seed,s.zone),z]);
+   const hit=p=>p&&document.elementFromPoint(p.x+rect.left,p.y+rect.top)===canvas;
    for(const g of s.war.army){
     if(g.count<=0||s.war.selectedBattalionIds.includes(g.id))continue;
-    const p=r.project([g.x,2,g.z]);
-    if(!p)continue;
-    for(const n of [28,42,58]){
-     const x0=p.x-n,y0=p.y-n,x1=p.x+n,y1=p.y+n;
-     if(![[x0,y0],[p.x,p.y],[x1,y1]].every(([x,y])=>document.elementFromPoint(x+rect.left,y+rect.top)===canvas))continue;
-     const a=r.screenToGround(x0,y0,s),b=r.screenToGround(x1,y1,s);
-     if(!a||!b||g.x<Math.min(a.x,b.x)||g.x>Math.max(a.x,b.x)||g.z<Math.min(a.z,b.z)||g.z>Math.max(a.z,b.z))continue;
-     return {id:g.id,x0:x0+rect.left,y0:y0+rect.top,x1:x1+rect.left,y1:y1+rect.top};
+    const p=project(g.x,g.z);
+    if(!hit(p))continue;
+    for(const margin of [4,6,9]){
+     // Project opposite world corners so the input algorithm receives a box
+     // whose ground X/Z bounds enclose the actual battalion, not its y=2 proxy.
+     for(const sign of [1,-1]){
+      const a=project(g.x-margin,g.z-sign*margin),b=project(g.x+margin,g.z+sign*margin);
+      if(!hit(a)||!hit(b)||Math.hypot(a.x-b.x,a.y-b.y)<=12)continue;
+      return {id:g.id,x0:a.x+rect.left,y0:a.y+rect.top,x1:b.x+rect.left,y1:b.y+rect.top};
+     }
     }
    }
    return null;
   }""")
+  box_evidence['target']=target
   checks['projection_exists']=target is not None
   checks['box_selection']=False
   if target:
    page.mouse.move(target['x0'],target['y0']);page.mouse.down()
    page.mouse.move(target['x1'],target['y1'],steps=8);page.mouse.up()
    selection=page.evaluate('window.__riftfront.state.war.selectedBattalionIds')
-   checks['box_selection']=target['id'] in selection
+   box_evidence['after']=selection
+   checks['box_selection']=target['id'] not in box_evidence['before'] and target['id'] in selection
   page.screenshot(path=str(OUT/'war-v07-tactical-camera.png'))
  except Exception as e:
   errors.append('exception: '+repr(e)+'\n'+traceback.format_exc(limit=8))
@@ -106,7 +121,7 @@ with sync_playwright() as pw:
     page.context.tracing.stop(path=str(OUT/'war-tactical-trace.zip'))
    else:page.context.tracing.stop()
   finally:browser.close()
- result={'checks':checks,'errors':errors,'frame_navigations':events}
+ result={'checks':checks,'errors':errors,'frame_navigations':events,'box_evidence':box_evidence}
  (OUT/'war-tactical-browser.json').write_text(json.dumps(result,indent=2))
  print(json.dumps(result,indent=2))
  assert len(checks)==12 and all(checks.values()) and not errors,'Tactical camera regression'
