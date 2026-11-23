@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {createGame,enterOperation,stepGame,serialize,restore,finishOperation,castAbility,grenade,addBuilding,changeEpoch} from '../src/sim.mjs';
+import {createGame,enterOperation,stepGame,serialize,restore,finishOperation,castAbility,grenade,addBuilding,changeEpoch,recruit,terrainHeight} from '../src/sim.mjs';
 import {trainBattalion,callWarSupport,warOrder,signalWarExtraction,setWarControlGroup,selectWarBattalions,warExplosion} from '../src/war.mjs';
 import {stampFacet} from '../src/temporal.mjs';
 import {objectiveRuntime} from '../src/war-objectives.mjs';
@@ -77,4 +77,27 @@ test('end-of-frame casualties remain safely saveable until next-tick cleanup',()
  warExplosion(s,enemy.x,enemy.z,10000,20);assert.equal(enemy.count,0);
  const loaded=restore(serialize(s));assert.equal(loaded.zone,'operation');
  run(s);run(loaded);assert.deepEqual(checkpoint(loaded),checkpoint(s));
+});
+
+
+test('cross-era siege keeps the exact combat squad and grounds the frontier recovery squad',()=>{
+ const s=createGame(9184);changeEpoch(s,'steam');s.player.x=-41;s.player.z=59;
+ s.inventory.scrap=100;assert.equal(recruit(s),true);assert.equal(recruit(s),true);
+ const returnSeed=s.seed;enterOperation(s,3);assert.notEqual(s.seed,returnSeed);run(s,4);
+ const text=serialize(s),save=JSON.parse(text),started=checkpoint(s);
+ const assertGrounded=(squad,seed)=>{
+  assert.equal(squad.length,started.squad.length);
+  assert.deepEqual(squad.map(u=>[u.id,u.hp,u.era]),started.squad.map(u=>[u.id,u.hp,u.era]));
+  for(const u of squad)assert.equal(u.y,terrainHeight(u.x,u.z,seed,'frontier'));
+ };
+ assert.equal(save.seed,returnSeed);
+ assertGrounded(save.squad,returnSeed);
+ const live=restore(text);
+ assert.equal(live.zone,'operation');assert.deepEqual(checkpoint(live),started);
+ assert.equal(finishOperation(live,false),true);assertGrounded(live.squad,returnSeed);
+ save.warCheckpoint.checksum='damaged';
+ save.squad.forEach(u=>u.y=terrainHeight(u.x,u.z,s.seed,'frontier'));
+ const legacy=restore(save);
+ assert.equal(legacy.zone,'frontier');assert.equal(legacy.era,'steam');assert.equal(legacy.checkpointWarning,true);
+ assertGrounded(legacy.squad,returnSeed);
 });
