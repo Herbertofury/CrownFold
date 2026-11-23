@@ -30,10 +30,20 @@ with tempfile.TemporaryDirectory(prefix='crownfold-playable-') as folder:
                     page.locator('#quick-war').click()
                     page.wait_for_function('window.__riftfront?.state.war && window.__riftfront.tactics.calls.path > 0')
                 else:
+                    # The HUD wrapper has no box: its visible children are fixed-position.
+                    # Check the real match state, a timed simulation tick, and visible controls.
+                    startup = page.locator('#error')
+                    assert not startup.is_visible(), startup.text_content()
+                    page.wait_for_function("window.crownfold?.mode === 'menu'")
                     page.locator('#play').click()
-                    page.locator('#hud').wait_for(state='visible')
-                    assert not page.locator('#error').is_visible()
+                    page.wait_for_function(
+                        "window.crownfold?.mode === 'solo' && "
+                        "window.crownfold.state.status === 'playing' && window.crownfold.state.tick > 0"
+                    )
+                    page.locator('#match-bar').wait_for(state='visible')
+                    assert 'SOLO DUEL' in page.locator('#match-type').inner_text()
                     assert page.locator('#board').is_visible()
+                    assert not startup.is_visible(), startup.text_content()
                 assert not errors, (name, errors)
                 print(f'PASS: extracted {name} starts with HTTP(S) blocked')
         browser.close()
