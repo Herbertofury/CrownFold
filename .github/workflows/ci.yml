@@ -50,6 +50,16 @@ jobs:
           cp test-results/crafting-browser.json test-results/crafting-offline.json
           CROWNFOLD_URL=http://127.0.0.1:3040/ python tests/crafting_browser.py
           cp test-results/crafting-browser.json test-results/crafting-served.json
+      - name: Package both tested offline games
+        run: |
+          python tests/playable_package_test.py
+          python scripts/package_playable.py --output "${RUNNER_TEMP}/CrownFold-offline-playtest.zip"
+          python tests/playable_package_browser.py "${RUNNER_TEMP}/CrownFold-offline-playtest.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crownfold-offline-playtest
+          path: ${{ runner.temp }}/CrownFold-offline-playtest.zip
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
