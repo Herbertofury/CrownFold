@@ -13,6 +13,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify committed offline game is current
+        run: |
+          npm run build
+          if ! git diff --quiet -- dist/; then
+            echo "::error::Offline build is stale. Run npm run build and commit the generated dist files."
+            git diff --stat -- dist/
+            exit 1
+          fi
       - name: Set up pinned Rust toolchain
         run: rustup show
       - name: Rust format, lint, native tests and Wasm reproducibility
@@ -21,9 +29,8 @@ jobs:
           cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
           npm run test:rust
           npm run check:rust
-      - name: Build, syntax and simulation regression suite
+      - name: Syntax and simulation regression suite
         run: |
-          npm run build
           npm run check
           npm test
           git diff --exit-code -- dist/ src/rust-tactics-data.mjs
