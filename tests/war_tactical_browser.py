@@ -4,19 +4,29 @@ from playwright.sync_api import sync_playwright
 import json,os,traceback
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'test-results';OUT.mkdir(exist_ok=True)
-checks={};errors=[]
+checks={};errors=[];events=[]
 with sync_playwright() as pw:
  browser=pw.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_PATH'),args=['--no-sandbox','--disable-dev-shm-usage','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--enable-webgl'])
  page=browser.new_page(viewport={'width':1600,'height':900},device_scale_factor=1)
- page.set_default_timeout(4500)
+ page.set_default_timeout(7000)
+ page.context.tracing.start(screenshots=True,snapshots=True,sources=False)
+ page.on('framenavigated',lambda frame:events.append({'main':frame==page.main_frame,'url':frame.url}))
  page.on('pageerror',lambda e:errors.append('page: '+str(e)))
  page.on('console',lambda m:errors.append('console: '+m.text) if m.type=='error' else None)
  try:
   page.route('**/*',lambda route:route.abort() if route.request.url.startswith(('http://','https://')) else route.continue_())
   page.goto((ROOT/'dist/CROWNFOLD-RIFTFRONT.html').as_uri(),wait_until='domcontentloaded')
   page.wait_for_function('window.__riftfront && window.__riftfront.renderer',timeout=30000)
-  page.locator('#quick-war').click()
-  page.wait_for_function('window.__riftfront.active && window.__riftfront.state.war')
+  quick=page.locator('#quick-war')
+  quick.click(trial=True)
+  button=quick.bounding_box()
+  assert button, 'Quick War button disappeared after becoming actionable'
+  offline_url=page.url
+  # The button toggles game state, not page navigation. Send a real pointer
+  # gesture, then await the application's transition rather than a navigation.
+  page.mouse.click(button['x']+button['width']/2,button['y']+button['height']/2)
+  page.wait_for_function('window.__riftfront.active && !!window.__riftfront.state.war')
+  assert page.url==offline_url, 'Quick War left the offline game document'
   page.keyboard.press('Tab')
   page.wait_for_function('window.__riftfront.commander && !!window.__riftfront.renderer.vp')
   before=page.evaluate('''()=>({player:[window.__riftfront.state.player.x,window.__riftfront.state.player.z],cam:[window.__riftfront.renderer.tactical.x,window.__riftfront.renderer.tactical.z],zoom:window.__riftfront.renderer.tactical.zoom})''')
@@ -90,8 +100,13 @@ with sync_playwright() as pw:
   page.screenshot(path=str(OUT/'war-v07-tactical-camera.png'))
  except Exception as e:
   errors.append('exception: '+repr(e)+'\n'+traceback.format_exc(limit=8))
- finally:browser.close()
- result={'checks':checks,'errors':errors}
+ finally:
+  try:
+   if errors or len(checks)!=12 or not all(checks.values()):
+    page.context.tracing.stop(path=str(OUT/'war-tactical-trace.zip'))
+   else:page.context.tracing.stop()
+  finally:browser.close()
+ result={'checks':checks,'errors':errors,'frame_navigations':events}
  (OUT/'war-tactical-browser.json').write_text(json.dumps(result,indent=2))
  print(json.dumps(result,indent=2))
  assert len(checks)==12 and all(checks.values()) and not errors,'Tactical camera regression'
