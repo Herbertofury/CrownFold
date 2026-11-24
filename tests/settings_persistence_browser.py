@@ -1,7 +1,9 @@
 """Bounded fresh-document and persistent-profile file:// preference checks.
 No retry masks a failure: every fresh context must preserve the UI choice.
 """
+from hashlib import sha256
 from pathlib import Path
+from time import perf_counter_ns
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
@@ -9,9 +11,11 @@ from playwright.sync_api import sync_playwright
 import json, os, traceback, tempfile
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'test-results';OUT.mkdir(exist_ok=True)
-URL=(ROOT/'dist/CROWNFOLD-RIFTFRONT.html').as_uri()
+STANDALONE=ROOT/'dist/CROWNFOLD-RIFTFRONT.html'
+URL=STANDALONE.as_uri()
 KEY='crownfold-player-settings-v1'
-rows=[];served=[];plain=[];restarts=[];errors=[];version=None
+OFFLINE_PAIRS=24
+rows=[];fast=[];served=[];plain=[];restarts=[];errors=[];version=None
 
 def ready(page,url=URL):
  page.on('pageerror',lambda e:errors.append(str(e)))
@@ -25,28 +29,40 @@ class QuietHandler(SimpleHTTPRequestHandler):
  def log_message(self,*args):
   pass
 
-def same_document_trial(browser,url,iteration,mode):
+def same_document_trial(browser,url,iteration,mode,*,instrumented=True):
  context=browser.new_context(viewport={'width':1280,'height':900},reduced_motion='reduce')
  try:
   first=context.new_page();first.add_init_script(f"localStorage.setItem('{KEY}','{{broken')");ready(first,url)
   initial=snapshot(first)
   first.locator('#title-settings').click();first.locator('#setting-effects').uncheck();first.locator('#settings-close').click()
+  click_done=perf_counter_ns()
   before=snapshot(first)
   second=context.new_page();ready(second,url)
-  overlap_first=snapshot(first);overlap_second=snapshot(second)
-  lifecycle={'first_url':first.url,'second_url':second.url,
-   'first_visibility':first.evaluate('document.visibilityState'),
-   'second_visibility':second.evaluate('document.visibilityState'),
-   'first_storage_origin':first.evaluate('location.origin'),
-   'second_storage_origin':second.evaluate('location.origin')}
+  second_ready=perf_counter_ns()
+  overlap_first=overlap_second=lifecycle=None
+  if instrumented:
+   overlap_first=snapshot(first);overlap_second=snapshot(second)
+   lifecycle={'first_url':first.url,'second_url':second.url,
+    'first_visibility':first.evaluate('document.visibilityState'),
+    'second_visibility':second.evaluate('document.visibilityState'),
+    'first_storage_origin':first.evaluate('location.origin'),
+    'second_storage_origin':second.evaluate('location.origin')}
+  close_started=perf_counter_ns()
   first.close()
+  close_done=perf_counter_ns()
+  # First browser command after closing; never retry or insert an extra probe.
   after=snapshot(second)
+  first_read_done=perf_counter_ns()
+  timing_ms={'click_done_to_close_start':(close_started-click_done)/1e6,
+   'second_ready_to_close_start':(close_started-second_ready)/1e6,
+   'close_command':(close_done-close_started)/1e6,
+   'close_done_to_first_snapshot':(first_read_done-close_done)/1e6}
   passed=(initial['runtime']['reduceEffects'] is True and before['runtime']['reduceEffects'] is False
    and json.loads(before['stored'])['reduceEffects'] is False and after['stored']==before['stored']
    and after['runtime']['reduceEffects'] is False)
   return {'mode':mode,'iteration':iteration,'initial':initial,'before_close':before,
    'first_while_both_open':overlap_first,'second_while_both_open':overlap_second,
-   'after_reopen':after,'lifecycle':lifecycle,'passed':passed}
+   'after_reopen':after,'lifecycle':lifecycle,'timing_ms':timing_ms,'passed':passed}
  finally:context.close()
 
 def plain_file_trial(browser,url,iteration):
@@ -81,10 +97,17 @@ with sync_playwright() as pw:
   server=Thread(target=http.serve_forever,daemon=True);server.start()
   served_url=f'http://127.0.0.1:{http.server_port}/CROWNFOLD-RIFTFRONT.html'
   try:
-   for mode,url,count,results in [('offline-file',URL,12,rows),('loopback-same-origin',served_url,4,served)]:
-    for iteration in range(count):
-     try:results.append(same_document_trial(browser,url,iteration,mode))
+   # Pair on this exact browser process and artifact. Reverse each pair's
+   # order to limit warm-up bias without modifying the application's timing.
+   for iteration in range(OFFLINE_PAIRS):
+    order=(True,False) if iteration%2==0 else (False,True)
+    for instrumented in order:
+     mode,results=('offline-file-instrumented',rows) if instrumented else ('offline-file-immediate',fast)
+     try:results.append(same_document_trial(browser,URL,iteration,mode,instrumented=instrumented))
      except Exception as exc:errors.append(f'{mode} trial {iteration}: {exc!r}\n'+traceback.format_exc(limit=8))
+   for iteration in range(4):
+    try:served.append(same_document_trial(browser,served_url,iteration,'loopback-same-origin'))
+    except Exception as exc:errors.append(f'loopback trial {iteration}: {exc!r}\n'+traceback.format_exc(limit=8))
    with tempfile.TemporaryDirectory(prefix='crownfold-plain-storage-') as folder:
     control=Path(folder)/'CROWNFOLD-PLAIN-STORAGE.html'
     control.write_text("""<!doctype html><meta charset="utf-8"><button id="save">Save preferences</button>
@@ -113,6 +136,6 @@ with sync_playwright() as pw:
      restarts.append({'iteration':iteration,'before_exit':before,'after_restart':after,'passed':after['stored']==before['stored'] and after['runtime']['reduceEffects'] is False})
     finally:context.close()
  except Exception as exc:errors.append(repr(exc)+'\n'+traceback.format_exc(limit=8))
-result={'browser_version':version,'fresh_document_trials':rows,'loopback_same_origin_trials':served,'plain_file_trials':plain,'persistent_profile_restarts':restarts,'errors':errors,'scope':'Standalone via file and loopback, plus script-only file control; no campaign or personal data.'}
+result={'browser_version':version,'standalone_sha256':sha256(STANDALONE.read_bytes()).hexdigest(),'fresh_document_trials':rows,'immediate_close_trials':fast,'loopback_same_origin_trials':served,'plain_file_trials':plain,'persistent_profile_restarts':restarts,'errors':errors,'scope':'Standalone via file and loopback, plus script-only file control; no campaign or personal data.'}
 (OUT/'settings-persistence-stress.json').write_text(json.dumps(result,indent=2));print(json.dumps(result,indent=2))
-assert len(rows)==12 and len(served)==4 and len(plain)==12 and len(restarts)==4 and all(row['passed'] for row in rows+served+plain+restarts) and not errors,'Settings persistence stress regression'
+assert len(rows)==OFFLINE_PAIRS and len(fast)==OFFLINE_PAIRS and len(served)==4 and len(plain)==12 and len(restarts)==4 and all(row['passed'] for row in rows+fast+served+plain+restarts) and not errors,'Settings persistence stress regression'
