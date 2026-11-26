@@ -119,3 +119,17 @@ Headless Chromium used the **software triangle rendering fallback** on this host
 3. Play each dungeon legitimately, including actual combat, independent guardian AI, safe puzzle solves and retreat/return flows.
 4. Simulate multiple in-game weeks and save/reload cycles on long-distance landmarks, and check localStorage boundary/corruption behavior.
 5. Create design-driven playtests for perk usefulness, spell synergy, NPC interaction clarity, safe minigame skill ceiling and companion behavior.
+
+## Downloadable offline playtest package
+
+A successful **CrownFold gameplay** workflow retains a `crownfold-offline-playtest` Actions artifact. It contains both the Riftfront and original board-game HTML files, launch instructions, and SHA-256 checksums, not private saves. The workflow first checks the generated playables against the checkout, then starts a quick war and a solo board game from the extracted ZIP in Chromium with network requests blocked. The artifact is an experimental playtest download, not a GitHub Release, a human campaign playthrough, or native acceptance.
+
+To assemble the same ZIP locally from a clean checkout after `npm run build`:
+
+```sh
+python tests/playable_package_test.py
+python scripts/package_playable.py --output /tmp/CrownFold-offline-playtest.zip
+python tests/playable_package_browser.py /tmp/CrownFold-offline-playtest.zip
+```
+
+The final command uses the same Playwright Chromium as the gameplay CI. The packager rejects missing or altered HTML and will not overwrite an existing ZIP.
