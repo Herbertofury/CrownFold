@@ -24,7 +24,7 @@ with sync_playwright() as pw:
   page.evaluate('''()=>{const s=window.__riftfront.state,w=s.war;
    w.act='anchors';w.footholdHold=24;w.nodes[0].owner='ally';w.nodes[1].owner='ally';
    w.cover[0].hp=17;w.enemyArmy=[];w.enemyWaveTimer=1e9;
-   w.bellSiege.outcomes.ledger='success';s.temporal.insight=4;
+   w.bellSiege.outcomes.ledger='success';s.temporal.insight=4;s.weather='storm';
    s.rpg.abilityCooldowns.drone=31;s.player.orbitalCooldown=43;
    document.exitPointerLock();
   }''')
@@ -58,6 +58,7 @@ with sync_playwright() as pw:
   page.goto(url);page.wait_for_function('window.__riftfront?.renderer');page.locator('#continue-quick').click()
   checks[label+'_corruption_recovery']=page.evaluate('window.__riftfront.state.zone==="frontier" && window.__riftfront.state.checkpointWarning===true')
   checks[label+'_recovery_visible']='FRONTIER PROGRESS RECOVERED' in page.locator('#notifications').inner_text()
+  checks[label+'_recovery_keeps_saved_weather']=page.evaluate('window.__riftfront.state.weather==="storm"')
   context.close()
  # Storage failure preserves previous data and Cancel does not leave the game.
  context=browser.new_context();page=context.new_page();page.goto(URL);page.wait_for_function('window.__riftfront?.renderer')

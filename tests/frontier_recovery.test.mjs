@@ -5,3 +5,22 @@ function defeated(){const s=createGame(1234);s.time=10;s.spawnTimer=999;s.player
 test('frontier recovery returns grounded with no inherited falling velocity',()=>{const s=defeated();stepGame(s,{},.01);assert.equal(s.player.x,0);assert.equal(s.player.z,0);assert.equal(s.player.y,terrainHeight(0,0,s.seed,'frontier'));assert.equal(s.player.vy,0);assert.equal(s.stats.death,1);});
 test('recovery cannot Echo back into the fatal encounter or spend Flux trying',()=>{const s=defeated();stepGame(s,{},.01);const flux=s.inventory.flux;assert.equal(echo(s),false);assert.equal(s.inventory.flux,flux);assert.deepEqual(s.player.memories,[]);});
 test('recovery preserves earned progress and charges only available scrap once',()=>{const s=defeated();s.inventory.scrap=7;s.rpg.coins=431;s.rpg.quests.first_light={status:'ready',progress:8};stepGame(s,{},.01);assert.equal(s.inventory.scrap,0);assert.equal(s.rpg.coins,431);assert.equal(s.rpg.quests.first_light.status,'ready');assert.ok(s.messages.some(m=>m.text?.includes('7 SCRAP LOST')));stepGame(s,{},.01);assert.equal(s.stats.death,1);const loaded=restore(serialize(s));assert.equal(loaded.stats.death,1);assert.equal(loaded.rpg.coins,431);assert.equal(loaded.inventory.scrap,0);assert.equal(loaded.player.x,0);});
+
+test('frontier reload retains saved weather and day time',()=>{
+ const s=createGame(1234);
+ s.dayTime=71032;
+ for(const weather of ['storm','rain','clear']){
+  s.weather=weather;
+  const loaded=restore(serialize(s));
+  assert.equal(loaded.weather,weather);
+  assert.equal(loaded.dayTime,71032);
+ }
+});
+
+test('legacy or invalid saved weather keeps the normal clear default',()=>{
+ const data=JSON.parse(serialize(createGame(1234)));
+ for(const value of [undefined,null,'hail',{},1]){
+  data.weather=value;
+  assert.equal(restore(JSON.stringify(data)).weather,'clear');
+ }
+});
